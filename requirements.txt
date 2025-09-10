@@ -25,3 +25,7 @@ reportlab
 #Environment Variable Management (optional but good practice)
 
 python-dotenv
+
+#Interface
+gradio
+httpx
