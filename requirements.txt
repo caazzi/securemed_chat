@@ -1,0 +1,27 @@
+#Core Framework
+fastapi
+uvicorn
+
+#Google Cloud & Vertex AI
+
+google-cloud-aiplatform
+langchain-google-vertexai
+
+#LangChain Core Components
+
+langchain
+langchain_community
+
+#Vector Store & Document Processing
+
+faiss-cpu
+pypdf
+tqdm
+
+#PDF Generation
+
+reportlab
+
+#Environment Variable Management (optional but good practice)
+
+python-dotenv
