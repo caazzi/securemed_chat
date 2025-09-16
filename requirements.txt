@@ -1,27 +1,25 @@
-#Core Framework
+# Core Framework
 fastapi
 uvicorn
+pydantic
 
-#Google Cloud & Vertex AI
-
+# Google Cloud & Vertex AI
 google-cloud-aiplatform
 langchain-google-vertexai
 
-#LangChain Core Components
-
+# LangChain Core Components
 langchain
 langchain_community
 
-#Vector Store & Document Processing
+# Vector Store & Document Processing
+chromadb
 
-faiss-cpu
-pypdf
-tqdm
-
-#PDF Generation
-
+# PDF Generation
 reportlab
 
-#Environment Variable Management (optional but good practice)
-
+# Environment Variable Management
 python-dotenv
+
+# HTTP client for ChromaDB communication
+httpx
+requests

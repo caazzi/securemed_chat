@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 # Import configurations and the embedding model client from the core application
 from src.securemed_chat.core.llm import embeddings
-from config import KNOWLEDGE_BASE_DIR, VECTOR_STORE_PATH, CHUNK_SIZE, CHUNK_OVERLAP, BATCH_SIZE
+from securemed_chat.core.config import KNOWLEDGE_BASE_DIR, VECTOR_STORE_PATH, CHUNK_SIZE, CHUNK_OVERLAP, BATCH_SIZE
 
 def build_vector_store():
     """

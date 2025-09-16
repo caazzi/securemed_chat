@@ -1,81 +1,95 @@
 """
-Retrieval-Augmented Generation (RAG) Service.
-
-This service is the "Clinical Brain" of the application. It is responsible for:
-1. Loading the pre-built vector store from disk.
-2. Creating a retriever to search for relevant clinical context.
-3. Constructing and invoking a RAG chain to generate clinically relevant
-   questions based on a user's chief complaint.
+Retrieval-Augmented Generation (RAG) and LLM Service.
 """
-from pathlib import Path
-
+import chromadb
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
 
-from src.securemed_chat.core.llm import llm, embeddings
-from config import VECTOR_STORE_PATH
+# Correct, absolute imports
+from securemed_chat.core.llm import llm, embeddings
+from securemed_chat.core.config import CHROMA_HOST, CHROMA_PORT, COLLECTION_NAME
 
-# --- Check for Vector Store and Load ---
-vector_store_path = Path(VECTOR_STORE_PATH)
-if not (vector_store_path / "index.faiss").exists():
-    raise FileNotFoundError(
-        f"Vector store not found at {VECTOR_STORE_PATH}. "
-        "Please run 'python scripts/build_vector_store.py' to create it."
+vector_store = None
+rag_chain = None
+deep_dive_rag_chain = None
+
+try:
+    print(f"🔗 Connecting to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}...")
+    chroma_client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+    chroma_client.heartbeat()
+    print("👍 ChromaDB connection successful.")
+
+    vector_store = Chroma(
+        client=chroma_client,
+        collection_name=COLLECTION_NAME,
+        embedding_function=embeddings,
+    )
+    print(f"📚 Successfully connected to collection: '{COLLECTION_NAME}'")
+
+except Exception as e:
+    print(f"❌ FAILED TO CONNECT TO CHROMADB: {e}")
+
+if vector_store:
+    retriever = vector_store.as_retriever(search_kwargs={'k': 4})
+
+    RAG_PROMPT_TEMPLATE = """
+    System: You are a helpful health assistant. Your goal is to help a patient structure their relevant medical history based on their chief complaint.
+    CONTEXT: {context}
+    QUESTION: Based ONLY on the clinical anamnesis information in the CONTEXT above, generate a numbered list of exactly 5 essential questions to get more information about the patient's medical history for this chief complaint: '{chief_complaint}'. Frame the questions from the patient's perspective. For example, instead of "Ask about onset," the question should be "When did this symptom start?". Do not add any conversational text before or after the list of questions.
+    """
+    rag_prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
+    rag_chain = (
+        {"context": retriever, "chief_complaint": RunnablePassthrough()}
+        | rag_prompt
+        | llm
+        | StrOutputParser()
+    )
+    print("✅ RAG chain for initial questions is ready.")
+
+    DEEP_DIVE_RAG_PROMPT_TEMPLATE = """
+    System: You are a medical assistant. Use the provided CONTEXT to ask relevant follow-up questions based on the patient's chief complaint and their initial answers.
+    CONTEXT: {context}
+    PATIENT PROFILE: {chief_complaint}
+    PATIENT'S INITIAL ANSWERS: {initial_answers}
+    QUESTION: Based on the CONTEXT and the patient's answers, generate a numbered list of exactly 5 essential follow-up questions to explore their deeper medical history (like past surgeries, chronic conditions, family history, and medications). Frame questions from the patient's perspective. Do not add any conversational text.
+    """
+    deep_dive_rag_prompt = ChatPromptTemplate.from_template(DEEP_DIVE_RAG_PROMPT_TEMPLATE)
+
+    # --- START: CORRECTED CODE ---
+    # Define the retrieval part of the chain separately for clarity.
+    # This creates a valid runnable that formats a query string from the input
+    # and then passes it to the retriever.
+    retrieval_chain = (
+        (lambda x: f"{x['chief_complaint']} {x['initial_answers']}")
+        | retriever
     )
 
-print("💾 Loading the vector store... this may take a moment.")
-vector_store = FAISS.load_local(
-    folder_path=VECTOR_STORE_PATH,
-    embeddings=embeddings,
-    allow_dangerous_deserialization=True
-)
-print("👍 Vector store loaded successfully.")
+    # Correctly construct the main chain using the retrieval_chain.
+    deep_dive_rag_chain = (
+        RunnablePassthrough.assign(
+            context=retrieval_chain
+        )
+        | deep_dive_rag_prompt
+        | llm
+        | StrOutputParser()
+    )
+    # --- END: CORRECTED CODE ---
 
+    print("✅ RAG chain for follow-up questions is ready.")
 
-# --- Initialize Retriever ---
-# The retriever fetches the top 4 most relevant document chunks for a query.
-retriever = vector_store.as_retriever(search_kwargs={'k': 4})
-
-
-# --- Define the RAG Prompt Template ---
-# This is the master instruction for the LLM on how to generate questions.
-RAG_PROMPT_TEMPLATE = """
-System: You are a helpful health assistant. Your goal is to help a patient structure their relevant medical history based on their chief complaint.
-
-CONTEXT:
-{context}
-
-QUESTION:
-Based ONLY on the clinical anamnesis information in the CONTEXT above, generate a numbered list of exactly 5 essential questions to get more information about the patient's medical history for this chief complaint: '{chief_complaint}'.
-
-Frame the questions from the patient's perspective. For example, instead of "Ask about onset," the question should be "When did this symptom start?". Do not add any conversational text before or after the list of questions. The output must be in English.
-"""
-rag_prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
-
-
-# --- Create the RAG Chain ---
-# This chain links the retriever, prompt, and LLM together.
-rag_chain = (
-    {"context": retriever, "chief_complaint": RunnablePassthrough()}
-    | rag_prompt
-    | llm
-    | StrOutputParser()
-)
-
-print("✅ RAG chain is ready.")
-
-
-def generate_anamnesis_questions(chief_complaint: str) -> str:
-    """
-    Generates a list of anamnesis questions based on a chief complaint.
-
-    Args:
-        chief_complaint: The patient's chief complaint (e.g., "Persistent dry cough").
-
-    Returns:
-        A string containing a numbered list of questions.
-    """
-    print(f"🧠 Generating questions for chief complaint: '{chief_complaint}'...")
+def generate_initial_questions(chief_complaint: str) -> str:
+    if not rag_chain:
+        raise ConnectionError("RAG chain is not available due to ChromaDB connection issue.")
+    print(f"🧠 Generating initial questions for: '{chief_complaint}'...")
     return rag_chain.invoke(chief_complaint)
+
+def generate_follow_up_questions(chief_complaint: str, initial_answers: str) -> str:
+    if not deep_dive_rag_chain:
+        raise ConnectionError("Follow-up RAG chain is not available.")
+    print(f"🧠 Generating RAG-based follow-up questions for: '{chief_complaint}'...")
+    return deep_dive_rag_chain.invoke({
+        "chief_complaint": chief_complaint,
+        "initial_answers": initial_answers
+    })
