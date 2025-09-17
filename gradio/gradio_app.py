@@ -7,8 +7,9 @@ import gradio as gr
 import os
 import httpx
 import tempfile
-from typing import Tuple
+from typing import Tuple, Optional
 from dotenv import load_dotenv
+from datetime import datetime
 
 # --- Initial Setup ---
 load_dotenv()
@@ -71,16 +72,57 @@ ENHANCED_CSS = """
 
 /* Final Download Screen */
 .download-container { text-align: center; padding: 40px; }
-.download-icon { font-size: 3rem; color: var(--accent-color); margin-bottom: 16px; }
+.download-icon { font-size: 3rem; color: #28a745; margin-bottom: 16px; } /* Changed color to green */
 .next-steps { text-align: left; background-color: var(--background-light); padding: 16px; border-radius: var(--border-radius); margin-top: 24px; }
+
+/* Custom File Download Link */
+.file-download-box {
+    border: 1px solid var(--border-color);
+    padding: 12px 18px;
+    border-radius: var(--border-radius);
+    background-color: var(--background-light);
+    text-align: left;
+    overflow: hidden; /* Clear the float */
+    margin-top: 16px;
+}
+.file-download-box a {
+    color: var(--primary-color);
+    font-weight: 500;
+    text-decoration: none;
+}
+.file-download-box a:hover {
+    text-decoration: underline;
+}
+.file-size-info {
+    float: right;
+    color: var(--text-secondary);
+}
 """
 
-# --- Interface Logic Functions ---
-# (The Python logic remains the same as the previous version, only the UI components change)
+# --- Progress Bar Helper ---
+PROGRESS_BAR_BASE_HTML = """
+<div class="progress-bar">
+    <div class="progress-step {s1_active}"><div class="step-circle">1</div> Information</div>
+    <div class="progress-step {s2_active}"><div class="step-circle">2</div> Questions</div>
+    <div class="progress-step {s3_active}"><div class="step-circle">3</div> History</div>
+    <div class="progress-step {s4_active}"><div class="step-circle">4</div> Report</div>
+</div>
+"""
 
-async def handle_initial_questions(chief_complaint: str, age: int, gender: str, progress: gr.Request) -> Tuple:
+def create_progress_html(active_step: int) -> str:
+    """Generates the HTML for the progress bar based on the current step."""
+    return PROGRESS_BAR_BASE_HTML.format(
+        s1_active="active" if active_step >= 1 else "",
+        s2_active="active" if active_step >= 2 else "",
+        s3_active="active" if active_step >= 3 else "",
+        s4_active="active" if active_step >= 4 else ""
+    )
+
+# --- Interface Logic Functions ---
+async def handle_initial_questions(chief_complaint: str, age: int, gender: str) -> Tuple:
     if not all([chief_complaint, age, gender]):
-        return gr.update(), gr.update(), gr.HTML("<p class='status-error'>Please fill out all fields: concern, age, and gender.</p>"), "", gr.update()
+        error_msg = "<p class='status-error'>Please fill out all fields: concern, age, and gender.</p>"
+        return gr.update(), gr.update(), gr.HTML(error_msg), "", gr.update(visible=False)
     payload = {"chief_complaint": chief_complaint, "age": int(age), "gender": gender}
     try:
         async with httpx.AsyncClient() as client:
@@ -88,14 +130,15 @@ async def handle_initial_questions(chief_complaint: str, age: int, gender: str, 
             response.raise_for_status()
             data = response.json()
         questions = "### Initial Questions\n" + "\n".join(f"{i+1}. {q}" for i, q in enumerate(data.get("questions", [])))
-        return gr.update(visible=False), gr.update(visible=True), gr.HTML(), questions, gr.update(visible=True)
+        progress_html = create_progress_html(2)
+        return gr.update(visible=False), gr.update(visible=True), gr.HTML(), questions, gr.update(value=progress_html, visible=True)
     except Exception as e:
         error_html = f"<p class='status-error'>API error: {e}</p>"
-        return gr.update(), gr.update(), gr.HTML(error_html), "", gr.update(visible=True)
+        return gr.update(), gr.update(), gr.HTML(error_html), "", gr.update(visible=False)
 
 async def handle_follow_up_questions(chief_complaint: str, age: int, gender: str, initial_answers: str) -> Tuple:
     if not initial_answers.strip():
-        return gr.update(), gr.update(), gr.HTML("<p class='status-error'>Please answer the initial questions.</p>"), ""
+        return gr.update(), gr.update(), gr.HTML("<p class='status-error'>Please answer the initial questions.</p>"), "", gr.update()
     payload = {"chief_complaint": chief_complaint, "age": int(age), "gender": gender, "initial_answers": initial_answers}
     try:
         async with httpx.AsyncClient() as client:
@@ -103,35 +146,81 @@ async def handle_follow_up_questions(chief_complaint: str, age: int, gender: str
             response.raise_for_status()
             data = response.json()
         questions = "### Additional Questions (Medical History)\n" + "\n".join(f"{i+1}. {q}" for i, q in enumerate(data.get("questions", [])))
-        return gr.update(visible=False), gr.update(visible=True), gr.HTML(), questions
+        progress_html = create_progress_html(3)
+        return gr.update(visible=False), gr.update(visible=True), gr.HTML(), questions, gr.update(value=progress_html, visible=True)
     except Exception as e:
         error_html = f"<p class='status-error'>API error: {e}</p>"
-        return gr.update(), gr.update(), gr.HTML(error_html), ""
+        return gr.update(), gr.update(), gr.HTML(error_html), "", gr.update()
 
 async def handle_generate_pdf(chief_complaint: str, age: int, gender: str, initial_answers: str, follow_up_answers: str) -> Tuple:
     if not follow_up_answers.strip():
-        return gr.update(), gr.update(), gr.HTML("<p class='status-error'>Please answer the history questions.</p>"), None
+        return gr.update(), gr.update(), gr.HTML("<p class='status-error'>Please answer the history questions.</p>"), None, None, gr.update()
     payload = {"chief_complaint": chief_complaint, "age": int(age), "gender": gender, "initial_answers": initial_answers, "follow_up_answers": follow_up_answers}
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(PDF_URL, json=payload, timeout=60.0)
             response.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(await response.aread())
-            return gr.update(visible=False), gr.update(visible=True), gr.HTML(), tmp.name
+
+        # Create a timestamped filename and save the PDF to a temporary path
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        file_name = f"Medical_Summary_Report_{timestamp}.pdf"
+        temp_dir = tempfile.gettempdir()
+        pdf_path = os.path.join(temp_dir, file_name)
+
+        with open(pdf_path, "wb") as f:
+            f.write(await response.aread())
+
+        progress_html = create_progress_html(4)
+
+        # --- MODIFICATION START ---
+        # Construct custom HTML for the download link instead of using the default gr.File display
+        file_size_kb = os.path.getsize(pdf_path) / 1024
+        download_html = f"""
+        <div class="file-download-box">
+            <a href="/file={pdf_path}" download="{file_name}">📄 {file_name}</a>
+            <span class="file-size-info">{file_size_kb:.1f} KB</span>
+        </div>
+        """
+        # Return path to hidden file handler and HTML to the display component
+        return gr.update(visible=False), gr.update(visible=True), gr.HTML(), pdf_path, download_html, gr.update(value=progress_html, visible=True)
+        # --- MODIFICATION END ---
+
     except Exception as e:
         error_html = f"<p class='status-error'>Failed to generate PDF: {e}</p>"
-        return gr.update(), gr.update(), gr.HTML(error_html), None
+        # Ensure the correct number of values are returned on error
+        return gr.update(), gr.update(), gr.HTML(error_html), None, None, gr.update()
 
 # --- UI Navigation Functions ---
-def go_to_step(step_num):
-    updates = [gr.update(visible=False)] * 4 # Total number of steps
-    updates[step_num - 1] = gr.update(visible=True)
-    return tuple(updates)
+def go_to_step(step_num: int):
+    """Updates visibility of step containers and the progress bar."""
+    all_steps = 4
+    step_visibility = [gr.update(visible=False)] * all_steps
+    step_visibility[step_num - 1] = gr.update(visible=True)
+
+    progress_update = gr.update(visible=False)
+    # Don't show progress bar on step 1
+    if step_num > 1:
+        progress_update = gr.update(value=create_progress_html(step_num), visible=True)
+    else: # Explicitly hide for step 1
+        progress_update = gr.update(visible=False)
+
+    return tuple(step_visibility) + (progress_update,)
+
+def full_reset():
+    """Resets the entire interface to its initial state."""
+    updates = go_to_step(1)
+    # Also clear all input fields
+    return updates + (
+        "", gr.update(value=None), gr.update(value=None), # Step 1 inputs
+        "", # Step 2 input
+        ""  # Step 3 input
+    )
+
 
 # --- Gradio Interface Construction ---
 def create_interface():
     with gr.Blocks(title="SecureMed Assistant", theme=gr.themes.Soft(), css=ENHANCED_CSS) as interface:
+        # State variables to hold data between steps
         state_complaint = gr.State("")
         state_age = gr.State()
         state_gender = gr.State("")
@@ -147,15 +236,8 @@ def create_interface():
         </div>
         """)
 
-        # This component's visibility will be controlled to show progress
-        progress_bar_step2 = gr.HTML("""
-            <div class="progress-bar">
-                <div class="progress-step active"><div class="step-circle">1</div> Information</div>
-                <div class="progress-step active"><div class="step-circle">2</div> Questions</div>
-                <div class="progress-step"><div class="step-circle">3</div> History</div>
-                <div class="progress-step"><div class="step-circle">4</div> Report</div>
-            </div>
-        """, visible=False)
+        # A single, dynamic progress bar component, initially hidden
+        progress_bar = gr.HTML(visible=False)
 
         # Step 1: Patient Information
         with gr.Group(visible=True) as step1:
@@ -200,34 +282,61 @@ def create_interface():
         with gr.Group(visible=False) as step4:
             with gr.Column(elem_classes="step-container download-container"):
                 gr.HTML('<div class="download-icon">✅</div><h2 class="step-title">Your Report is Ready!</h2><p class="step-description">Download the PDF below. This structured summary will help you have a more effective conversation with your doctor.</p>')
-                pdf_output = gr.File(label="Download Your SecureMed Report")
+
+                # --- MODIFICATION START ---
+                # Use a hidden gr.File to handle serving the file and a gr.HTML to display our custom link.
+                pdf_file_handler = gr.File(visible=False)
+                pdf_download_display = gr.HTML(label="Download Your SecureMed Report")
+                # --- MODIFICATION END ---
+
                 gr.HTML('<div class="next-steps"><strong>Next Steps:</strong><br>1. Save the PDF to your phone or computer.<br>2. Share it with your doctor during your visit.</div>')
                 reset_btn = gr.Button("Start a New Report", variant="primary", elem_classes="button-row")
 
         # --- Event Logic ---
+        all_steps = [step1, step2, step3, step4]
+        all_inputs = [complaint_input, age_input, gender_input, initial_answers_input, follow_up_answers_input]
+
         # Step 1 -> 2
         next_btn_1.click(
-            handle_initial_questions, [complaint_input, age_input, gender_input], [step1, step2, status_step1, initial_questions_display, progress_bar_step2]
-        ).then(lambda x,y,z: (x,y,z), [complaint_input, age_input, gender_input], [state_complaint, state_age, state_gender])
+            handle_initial_questions,
+            inputs=[complaint_input, age_input, gender_input],
+            outputs=[step1, step2, status_step1, initial_questions_display, progress_bar]
+        ).then(
+            lambda x, y, z: (x, y, z),
+            inputs=[complaint_input, age_input, gender_input],
+            outputs=[state_complaint, state_age, state_gender]
+        )
 
         # Step 2 -> 3
         next_btn_2.click(
-            handle_follow_up_questions, [state_complaint, state_age, state_gender, initial_answers_input], [step2, step3, status_step2, follow_up_questions_display]
-        ).then(lambda x: x, initial_answers_input, state_initial_answers)
-
-        # Step 2 -> 1 (Back)
-        back_btn_2.click(lambda: go_to_step(1), None, [step1, step2, step3, step4])
-
-        # Step 3 -> 4
-        next_btn_3.click(
-            handle_generate_pdf, [state_complaint, state_age, state_gender, state_initial_answers, follow_up_answers_input], [step3, step4, status_step3, pdf_output]
+            handle_follow_up_questions,
+            inputs=[state_complaint, state_age, state_gender, initial_answers_input],
+            outputs=[step2, step3, status_step2, follow_up_questions_display, progress_bar]
+        ).then(
+            lambda x: x,
+            inputs=initial_answers_input,
+            outputs=state_initial_answers
         )
 
+        # Step 2 -> 1 (Back)
+        back_btn_2.click(lambda: go_to_step(1), None, all_steps + [progress_bar])
+
+        # Step 3 -> 4
+        # --- MODIFICATION START ---
+        # Update the outputs to match the new components for the PDF download
+        next_btn_3.click(
+            handle_generate_pdf,
+            inputs=[state_complaint, state_age, state_gender, state_initial_answers, follow_up_answers_input],
+            outputs=[step3, step4, status_step3, pdf_file_handler, pdf_download_display, progress_bar]
+        )
+        # --- MODIFICATION END ---
+
+
         # Step 3 -> 2 (Back)
-        back_btn_3.click(lambda: go_to_step(2), None, [step1, step2, step3, step4])
+        back_btn_3.click(lambda: go_to_step(2), None, all_steps + [progress_bar])
 
         # Reset after finish
-        reset_btn.click(lambda: go_to_step(1), None, [step1, step2, step3, step4])
+        reset_btn.click(lambda: full_reset(), None, all_steps + [progress_bar] + all_inputs)
 
     return interface
 

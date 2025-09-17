@@ -28,6 +28,7 @@ knowledge_base/
 
 # Old files
 old_versions/
+reports/
 
 # OS-specific files
 .DS_Store

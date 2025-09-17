@@ -1,3 +1,9 @@
+---
+title: securemed_chat
+app_file: gradio_app.py
+sdk: gradio
+sdk_version: 5.45.0
+---
 # SecureMed Chat 🩺
 
 SecureMed Chat is a privacy-first, AI-powered medical chatbot designed to help patients intelligently organize their medical history and symptoms before a doctor's visit. It aims to bridge the communication gap between patient and provider by creating a structured, clinically-relevant summary of the patient's condition.
