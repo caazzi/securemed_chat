@@ -2,20 +2,48 @@
 API Endpoints (Orchestrator).
 
 This module defines the FastAPI routes that act as the main orchestrator for
-the application's workflow.
+the application's workflow. It includes security measures and performance optimizations.
 """
 import re
 import json
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+import asyncio
+from typing import AsyncGenerator
+from fastapi import APIRouter, HTTPException, Security, Depends
+from fastapi.security import APIKeyHeader
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
 
-# Correct, absolute imports based on the new project structure
+# Correct, absolute imports
 from securemed_chat.core.llm import llm
-from securemed_chat.services.rag_service import generate_initial_questions, generate_follow_up_questions
-from securemed_chat.services.pdf_service import generate_pdf_report
+from securemed_chat.core.config import SECUREMED_API_KEY
+from securemed_chat.services.rag_service import (
+    stream_initial_questions,
+    stream_follow_up_questions,
+    summarize_and_structure_anamnesis  # <-- FIX: Import the new function
+)
+from securemed_chat.services.pdf_service import generate_pdf_report_in_memory
 
-# --- Pydantic Models for a structured, multi-step conversation ---
+# --- Security & Helper Functions ---
+
+API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
+
+async def get_api_key(api_key_header: str = Security(API_KEY_HEADER)):
+    """Dependency to validate the API key from the X-API-KEY header."""
+    if api_key_header == SECUREMED_API_KEY:
+        return api_key_header
+    raise HTTPException(status_code=403, detail="Could not validate credentials")
+
+def sanitize_input(text: str) -> str:
+    """Basic input sanitization."""
+    if not isinstance(text, str):
+        return ""
+    return text.strip()
+
+# This function is no longer needed here as the JsonOutputParser handles it in the service
+# def extract_json_from_llm(llm_output: str) -> dict: ...
+
+
+# --- Pydantic Models ---
 
 class InitialRequest(BaseModel):
     chief_complaint: str
@@ -35,69 +63,74 @@ class SummarizationRequest(BaseModel):
     initial_answers: str
     follow_up_answers: str
 
-class QuestionsResponse(BaseModel):
-    questions: list[str]
-
 # --- API Router ---
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_api_key)])
 
-def parse_questions_from_llm(text: str) -> list[str]:
-    """Utility to clean the numbered list output from the LLM."""
-    questions = re.findall(r"^\s*[-*]?\s*\d*\.?\s*(.*)", text, re.MULTILINE)
-    return [q.strip() for q in questions if q.strip()]
 
-@router.post("/initial-questions", response_model=QuestionsResponse)
-async def get_initial_questions(request: InitialRequest):
+@router.post("/initial-questions-stream")
+async def get_initial_questions_streamed(request: InitialRequest):
     """
-    Endpoint for the first step: Generates RAG-based questions from a chief complaint.
+    PERFORMANCE: Endpoint for the first step that streams RAG-based questions.
     """
     try:
-        complaint_context = f"A {request.age}-year-old {request.gender} presenting with: {request.chief_complaint}"
-        generated_text = generate_initial_questions(complaint_context)
-        return {"questions": parse_questions_from_llm(generated_text)}
+        sanitized_complaint = sanitize_input(request.chief_complaint)
+        complaint_context = f"A {request.age}-year-old {request.gender} presenting with: {sanitized_complaint}"
+
+        async def event_generator() -> AsyncGenerator[str, None]:
+            async for chunk in stream_initial_questions(complaint_context):
+                yield f"data: {json.dumps(chunk)}\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
     except ConnectionError as e:
         raise HTTPException(status_code=503, detail=f"Service Unavailable: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate initial questions: {e}")
 
-@router.post("/follow-up-questions", response_model=QuestionsResponse)
-async def get_follow_up_questions(request: FollowUpRequest):
+@router.post("/follow-up-questions-stream")
+async def get_follow_up_questions_streamed(request: FollowUpRequest):
     """
-    Endpoint for the second step: Generates deeper medical history questions.
+    PERFORMANCE: Endpoint for the second step that streams follow-up questions.
     """
     try:
-        complaint_context = f"A {request.age}-year-old {request.gender} presenting with: {request.chief_complaint}"
-        generated_text = generate_follow_up_questions(complaint_context, request.initial_answers)
-        return {"questions": parse_questions_from_llm(generated_text)}
+        sanitized_complaint = sanitize_input(request.chief_complaint)
+        sanitized_answers = sanitize_input(request.initial_answers)
+        complaint_context = f"A {request.age}-year-old {request.gender} presenting with: {sanitized_complaint}"
+
+        async def event_generator() -> AsyncGenerator[str, None]:
+            async for chunk in stream_follow_up_questions(complaint_context, sanitized_answers):
+                yield f"data: {json.dumps(chunk)}\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate follow-up questions: {e}")
 
-@router.post("/summarize-and-create-pdf")
-async def summarize_and_create_pdf(request: SummarizationRequest):
+@router.post("/summarize-and-generate-pdf")
+async def summarize_and_generate_pdf_endpoint(request: SummarizationRequest):
     """
-    Final endpoint: Summarizes the full conversation and generates a PDF report.
-    """
-    SUMMARIZATION_PROMPT = f"""
-    Analyze the following patient's text. The patient is a {request.age}-year-old {request.gender}.
-    Extract the key medical information and structure it as a clean JSON object.
-    The JSON should have keys: "onset", "character", "associated_symptoms", "past_medical_history", "family_history", and "medications".
-    If a key's information is not present, use "N/A" for its value.
-    Ensure the output is ONLY the raw JSON object, without any markdown formatting.
-
-    Patient's full text: "Initial Answers: {request.initial_answers}\\n\\nFollow-up History Answers: {request.follow_up_answers}"
+    Final endpoint: Summarizes conversation and returns a PDF report directly.
+    The PDF is generated in-memory for enhanced privacy and security.
     """
     try:
-        summary_response = llm.invoke(SUMMARIZATION_PROMPT)
-        summary_content = summary_response.content.strip().replace("```json", "").replace("```", "")
-        structured_data = json.loads(summary_content)
-        structured_data['chief_complaint'] = request.chief_complaint
-        pdf_path = generate_pdf_report(structured_data)
-        return FileResponse(
-            path=pdf_path,
-            filename=pdf_path.name,
-            media_type='application/pdf'
+        # --- FIX: Replace old logic with a call to the new service function ---
+        structured_data = await summarize_and_structure_anamnesis(
+            chief_complaint=sanitize_input(request.chief_complaint),
+            initial_answers=sanitize_input(request.initial_answers),
+            follow_up_answers=sanitize_input(request.follow_up_answers)
         )
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail="Failed to parse summary from language model.")
+        # Add the original chief complaint back into the data for the PDF
+        structured_data['chief_complaint'] = sanitize_input(request.chief_complaint)
+
+        # PRIVACY/SECURITY: Generate PDF in memory and return bytes directly
+        pdf_bytes = generate_pdf_report_in_memory(structured_data)
+
+        headers = {
+            'Content-Disposition': 'attachment; filename="Medical_Summary_Report.pdf"'
+        }
+        return Response(content=pdf_bytes, media_type='application/pdf', headers=headers)
+
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"Service Unavailable: {e}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create PDF report: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")

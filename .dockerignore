@@ -29,6 +29,7 @@ knowledge_base/
 vector_store/
 scripts/
 old_versions/
+gradio/
 
 #Documentation and local configuration
 README.md

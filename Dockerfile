@@ -5,6 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 RUN pip install --no-cache-dir --upgrade pip
 COPY requirements.txt .
+# Add gunicorn here so it's included in the wheels
 RUN pip wheel --no-cache-dir --wheel-dir /app/wheels -r requirements.txt
 
 # --- Stage 2: Final Production Stage ---
@@ -27,8 +28,13 @@ USER appuser
 # Copy the application source code into the final WORKDIR
 COPY ./src/ ./src/
 
-# Expose the port
+# Expose the port that gunicorn will listen on
 EXPOSE 8080
 
-# The command to start the application.
-CMD ["uvicorn", "securemed_chat.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# --- FIX: Update Gunicorn command to prevent buffering and improve logging ---
+# -w 4: Starts 4 worker processes.
+# -k uvicorn.workers.UvicornWorker: Tells gunicorn to use uvicorn's worker class.
+# --bind 0.0.0.0:8080: Binds to the port expected by Cloud Run.
+# --access-logfile - --error-logfile -: Streams logs directly to stdout/stderr for Cloud Logging.
+# --no-sendfile: Can prevent issues with reverse proxies like Google's Frontend.
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "securemed_chat.main:app", "--bind", "0.0.0.0:8080", "--access-logfile", "-", "--error-logfile", "-", "--no-sendfile"]
