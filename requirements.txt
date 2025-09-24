@@ -25,3 +25,6 @@ python-dotenv
 # HTTP client for ChromaDB communication
 httpx
 requests
+
+#Interface
+gradio
