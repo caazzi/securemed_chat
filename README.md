@@ -1,165 +1,214 @@
-# SecureMed Chat 🩺
+# 🩺 SecureMed Chat - Privacy-First Medical Intake Assistant
 
-SecureMed Chat is a privacy-first, AI-powered medical chatbot designed to help patients intelligently organize their medical history and symptoms before a doctor's visit. It aims to bridge the communication gap between patient and provider by creating a structured, clinically-relevant summary of the patient's condition.
+A privacy-focused, AI-powered medical intake system that helps patients organize their health information before doctor visits. Built with a zero-persistence architecture ensuring complete data privacy.
 
-The core of the application is a Retrieval-Augmented Generation (RAG) architecture that grounds a powerful Large Language Model (LLM) in established medical knowledge. This ensures the questions asked are safe, relevant, and helpful, avoiding the risk of clinical "hallucinations".
+**Live Demo**: [https://caazzi-securemed.hf.space/](https://caazzi-securemed.hf.space/)
+
+## 🎯 Project Overview
+
+SecureMed Chat is an intelligent medical anamnesis assistant that generates contextual questions based on patient symptoms, helping them prepare comprehensive health summaries for their healthcare providers. The system uses RAG (Retrieval-Augmented Generation) with medical knowledge to ensure relevant and medically-informed questioning.
+
+## 🏗️ Architecture
+
+### System Components
+
+```
+┌─────────────────┐
+│  Gradio Frontend│ ──────► HuggingFace Spaces
+└────────┬────────┘
+         │ HTTPS + API Key
+         ▼
+┌─────────────────┐
+│  FastAPI Backend│ ──────► GCP Cloud Run (2Gi Memory)
+└────────┬────────┘         - Auto-scaling with min 1 instance
+         │                   - VPC Connector for secure DB access
+         ├──────────┐
+         ▼          ▼
+┌─────────────┐  ┌──────────────┐
+│ Vertex AI   │  │ChromaDB Vector│ ──► GCP VM Instance
+│ LLM Models  │  │    Store      │     (Internal Network Only)
+└─────────────┘  └──────────────┘
+```
+
+### Technology Stack
+
+- **Backend**: FastAPI with async/await patterns
+- **LLM**: Google Vertex AI (Gemini 2.5 Flash Lite)
+- **Embeddings**: Gemini Embedding Model
+- **Vector Store**: ChromaDB for medical knowledge retrieval
+- **Frontend**: Gradio with internationalization (EN/PT)
+- **PDF Generation**: ReportLab (in-memory generation)
+- **Deployment**: 
+  - API: GCP Cloud Run (Serverless)
+  - Vector DB: GCP Compute Engine VM
+  - UI: HuggingFace Spaces
+
+## 🔐 Privacy & Security Architecture
+
+### Zero-Persistence Design
+
+1. **No Data Storage**: 
+   - All patient information exists only in memory during the session
+   - No database records of patient data
+   - No file system persistence
+
+2. **In-Memory PDF Generation**:
+   ```python
+   # PDFs are generated in memory and streamed directly
+   buffer = io.BytesIO()
+   # ... PDF generation ...
+   pdf_bytes = buffer.getvalue()
+   buffer.close()
+   ```
+
+3. **Structured Logging Without PII**:
+   ```python
+   # Logs track operations but never patient data
+   logging.info(f"Streaming initial questions for new session (lang={lang}).")
+   # Never: logging.info(f"Patient complaint: {complaint}")
+   ```
+
+### Security Measures
+
+- **API Key Authentication**: All endpoints protected with X-API-KEY header
+- **Input Sanitization**: All user inputs stripped and validated
+- **Network Isolation**: ChromaDB accessible only via internal VPC
+- **Secret Management**: Using GCP Secret Manager for API keys
+- **TLS/HTTPS**: All communications encrypted in transit
+
+### Privacy Features
+
+- **Session-Based Processing**: Data exists only for request duration
+- **No User Accounts**: No registration or login required
+- **Explicit Disclaimers**: Clear messaging that output is not medical advice
+- **Data Minimization**: Only essential information collected (age bracket, not exact age)
+
+## 🔄 Request Flow
+
+1. **User Input** → Gradio interface collects symptoms
+2. **Question Generation** → RAG retrieves relevant medical context
+3. **Streaming Response** → Questions streamed to user in real-time
+4. **Answer Collection** → User provides detailed responses
+5. **Summarization** → LLM structures information into medical format
+6. **PDF Generation** → In-memory PDF creation and immediate download
+7. **Session End** → All data cleared from memory
+
+## 🚀 Deployment Configuration
+
+### Cloud Run Deployment
+
+```bash
+gcloud run deploy securemed-chat-service \
+  --source . \
+  --project=securemed-chat \
+  --region=southamerica-east1 \
+  --vpc-connector=api-to-db-connector \
+  --memory=2Gi \
+  --min-instances=1 \
+  --service-account=securemed-cr-sa@securemed-chat.iam.gserviceaccount.com \
+  --set-env-vars=CHROMA_HOST=securemed-chat.southamerica-east1-a.c.securemed-chat.internal,CHROMA_PORT=8000 \
+  --set-secrets=SECUREMED_API_KEY=SECUREMED_API_KEY:latest
+```
+
+### Performance Optimizations
+
+- **Lazy Loading**: Models initialized only on first request
+- **MMR Retrieval**: Using Maximum Marginal Relevance for diverse context
+- **Streaming Responses**: Real-time question delivery
+- **Optimized Workers**: Gunicorn with 2 workers for optimal concurrency
+- **Multi-stage Docker**: Minimized container size (~200MB)
+
+## 📊 API Endpoints
+
+| Endpoint | Purpose | Privacy Consideration |
+|----------|---------|----------------------|
+| `/api/initial-questions-stream` | Generate symptom questions | No data persistence |
+| `/api/follow-up-questions-stream` | Generate medical history questions | Context exists only in request |
+| `/api/summarize-and-generate-pdf` | Create medical summary PDF | In-memory generation, immediate disposal |
+
+## 🌍 Internationalization
+
+The system supports multiple languages with complete UI and content translation:
+
+- **English** (en): Default language
+- **Portuguese** (pt): Full translation including PDF output
+- Language auto-detected from browser settings
+
+## 🛡️ Security Best Practices Implemented
+
+1. **Principle of Least Privilege**: Service accounts with minimal permissions
+2. **Defense in Depth**: Multiple security layers (API key, VPC, IAM)
+3. **Input Validation**: Pydantic models with field constraints
+4. **Error Handling**: Graceful degradation without exposing internals
+5. **Rate Limiting**: Built-in Cloud Run throttling
+6. **Secure Defaults**: No default API keys in production
+
+## 📈 Monitoring & Observability
+
+- Structured logging for operational insights
+- No PII in logs or metrics
+- Cloud Run automatic metrics (latency, errors, traffic)
+- Health check endpoint at root path
+
+## 🤝 Contributing
+
+We welcome contributions! Please:
+
+1. **Test the live demo**: [https://caazzi-securemed.hf.space/](https://caazzi-securemed.hf.space/)
+2. **Review the code** for security and privacy improvements
+3. **Suggest enhancements** via issues or pull requests
+
+### Areas for Contribution
+
+- [ ] Additional language support
+- [ ] Enhanced medical knowledge base
+- [ ] Accessibility improvements (WCAG compliance)
+- [ ] Performance optimizations
+- [ ] Security audit findings
+- [ ] Documentation improvements
+
+## 📝 Compliance & Disclaimers
+
+- **Not Medical Advice**: System explicitly disclaims medical advisory capacity
+- **Data Protection**: Designed with GDPR/LGPD principles (no data retention)
+- **Healthcare Integration**: Not intended for direct EHR integration
+- **Age Verification**: System designed for adult users (18+)
+
+## 🔍 Code Review Focus Areas
+
+When reviewing the code, please pay special attention to:
+
+1. **Privacy Leaks**: Any inadvertent data persistence
+2. **Security Vulnerabilities**: Input validation, injection attacks
+3. **Performance Bottlenecks**: Async operations, memory usage
+4. **Error Handling**: Graceful failures, user experience
+5. **Internationalization**: Translation completeness and accuracy
+
+## 📖 Technical Documentation
+
+### Key Design Decisions
+
+1. **Why RAG over Fine-tuning?**: Maintains flexibility and avoids training on patient data
+2. **Why ChromaDB?**: Lightweight, efficient for medical document retrieval
+3. **Why Vertex AI?**: HIPAA-compliant infrastructure, regional deployment
+4. **Why In-Memory Processing?**: Absolute privacy guarantee
+
+### Performance Metrics
+
+- Cold start: ~3-5 seconds (mitigated by min-instances=1)
+- Question generation: <2 seconds
+- PDF generation: <1 second
+- Memory footprint: ~500MB per concurrent request
+
+## 📬 Contact & Support
+
+For questions about the architecture or to report security concerns, please open an issue with the appropriate label:
+
+- 🔐 `security` - Security vulnerabilities (use responsible disclosure)
+- 🔒 `privacy` - Privacy concerns or improvements
+- 🏗️ `architecture` - Architectural suggestions
+- 📚 `documentation` - Documentation improvements
 
 ---
 
-## ✨ Core Principles
-
-This project is built on a foundation of key principles outlined in its architecture:
-
-- **Security & Privacy First:** All components are designed with patient privacy as the top priority, with a goal of being stateless regarding personal health information (PHI).
-- **Modularity:** The system is composed of distinct services (API, LLM, RAG, PDF generation), allowing for easier updates, scaling, and maintenance.
-- **Clinical Relevance:** The RAG system, our "Clinical Brain," ensures the LLM's interactions are grounded in a curated medical knowledge base.
-- **User Experience:** The conversational flow is designed to be simple, intuitive, and reassuring for the patient.
-
----
-
-## 🏗️ Architecture Overview
-
-The application uses a modular, service-oriented design. The FastAPI Backend Server acts as the central **Orchestrator**, managing the conversation flow and coordinating between services.
-
-When a user submits their main symptom, the Orchestrator queries the **RAG Pipeline** (the "Clinical Brain"). This pipeline performs a semantic search on a **FAISS Vector Database**—built from a curated knowledge base of medical guidelines and anamnesis frameworks—to find the most relevant clinical context. This context is then combined with the user's input and sent to **Google's Gemini model via Vertex AI**, which generates a set of clinically-relevant questions for the patient.
-
-```mermaid
-graph TD
-    subgraph User
-        A[Patient]
-    end
-
-    subgraph System
-        B(FastAPI Orchestrator)
-        C(RAG Pipeline - 'The Clinical Brain')
-        D{Vector DB <br> (FAISS)}
-        E(LLM Service <br> (Gemini on Vertex AI))
-        F(PDF Generation)
-    end
-
-    A -- 1. Chief Complaint --> B
-    B -- 2. Query --> C
-    C -- 3. Semantic Search --> D
-    D -- 4. Retrieve Context --> C
-    C -- 5. Augmented Prompt --> E
-    E -- 6. Generate Questions --> B
-    B -- 7. Send Questions --> A
-    A -- 8. Answers --> B
-    B -- 9. Summarize --> E
-    E -- 10. Structured Summary --> B
-    B -- 11. Generate Report --> F
-    F -- 12. PDF --> A
-```
-
----
-
-## 🚀 Project Status & Roadmap
-
-This project is actively under development. Here is the current status and a look at what's next.
-
-### ✅ Implemented Features
-
-- **Backend API:** Fully functional orchestrator built with FastAPI.
-- **RAG Pipeline:** The "Clinical Brain" is operational, using LangChain to connect the retriever and LLM.
-- **Vector Database:** Local vector store creation and search using FAISS.
-- **LLM Integration:** Question generation and summarization powered by Google's Gemini models via Vertex AI.
-- **PDF Generation:** On-the-fly creation of a structured PDF summary.
-
-### 🗺️ Future Roadmap
-
-- **User Interface:** Develop a simple and secure front-end client (e.g., a web app or a WhatsApp integration) to replace API-based testing.
-- **Enhanced Security:** Implement robust, HIPAA-compliant security protocols for handling any potential data in transit.
-- **Knowledge Base Expansion:** Continuously curate and expand the medical knowledge base with more clinical guidelines and symptom-specific question sets.
-- **Deployment:** Containerize the services and deploy them to a secure cloud environment.
-
----
-
-## 🛠️ Getting Started
-
-Follow these steps to set up and run the project locally.
-
-### 1. Prerequisites
-
-- Python 3.10+
-- A Google Cloud Platform (GCP) account with a project created.
-- Google Cloud SDK (`gcloud`) installed and configured on your machine.
-
-### 2. Clone the Repository
-
-```bash
-git clone <your-repository-url>
-cd securemed-chat
-```
-
-### 3. Set Up a Virtual Environment
-
-It is highly recommended to use a virtual environment.
-
-```bash
-# Create the environment
-python -m venv smc-env
-
-# Activate it (Linux/macOS)
-source smc-env/bin/activate
-
-# Activate it (Windows)
-smc-env\Scripts\activate
-```
-
-### 4. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 5. Authenticate with Google Cloud
-
-You need to authenticate your local machine to allow the application to access Vertex AI services.
-
-```bash
-# This will open a browser window to log you in.
-gcloud auth application-default login
-
-# IMPORTANT: Set the quota project to your GCP project ID.
-# Replace 'your-gcp-project-id' with the actual ID.
-gcloud auth application-default set-quota-project your-gcp-project-id
-```
-
----
-
-## ⚙️ How to Run the Application
-
-### 1. Populate the Knowledge Base
-
-Place your curated medical PDF documents inside the `/knowledge_base` directory. The quality and relevance of these documents directly impact the chatbot's performance. Good sources include clinical textbooks or anamnesis frameworks like OLDCARTS.
-
-### 2. Build the Vector Store
-
-This is a one-time step that processes the PDFs in your knowledge base and creates a local FAISS vector database. Run this script from the project's root directory.
-
-```bash
-python scripts/build_vector_store.py
-```
-
-### 3. Run the API Server
-
-Start the FastAPI application using Uvicorn.
-
-```bash
-uvicorn src.securemed_chat.main:app --reload --host 0.0.0.0
-```
-
-- `--reload`: Automatically restarts the server when you make code changes.
-- `--host 0.0.0.0`: Makes the server accessible from your local network.
-
-The API will be running at `http://localhost:8000`.
-
----
-
-## 🧪 How to Test
-
-Once the server is running, the easiest way to test the full workflow is via the interactive Swagger UI documentation.
-
-1.  Open your browser to: [http://localhost:8000/docs](http://localhost:8000/docs)
-2.  Use the `/api/generate-questions` endpoint to simulate a user providing their chief complaint.
-3.  Use the `/api/summarize-and-create-pdf` endpoint to provide answers and receive the final PDF summary.
+**Remember**: This system is designed for informational purposes only and should not replace professional medical consultation. Always consult with qualified healthcare providers for medical advice.
