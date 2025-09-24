@@ -88,3 +88,5 @@ docs/_build/
 *.swp
 *.swo
 *~
+
+.gradio/

@@ -18,6 +18,7 @@ pycache/
 #IDE and local development configuration
 .vscode/
 .direnv/
+.gradio/
 
 #Jupyter Notebooks and generated reports
 *.ipynb

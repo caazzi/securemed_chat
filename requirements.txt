@@ -11,6 +11,7 @@ langchain-google-vertexai
 # LangChain Core Components
 langchain
 langchain_community
+langdetect
 
 # Vector Store & Document Processing
 chromadb
