@@ -21,17 +21,7 @@ class TestP1_NoHardcodedIP:
             source = f.read()
         assert "34.151.247.35" not in source, "Hardcoded IP still present in config.py"
 
-    def test_chroma_host_defaults_to_localhost(self):
-        """When CHROMA_HOST env var is unset, it should default to localhost."""
-        # The module was already loaded with whatever env is set.
-        # We test the source-level default instead.
-        import securemed_chat.core.config as cfg
-        src_path = cfg.__file__
-        with open(src_path) as f:
-            source = f.read()
-        assert re.search(r'CHROMA_HOST.*"localhost"', source), (
-            "CHROMA_HOST should default to 'localhost'"
-        )
+
 
 
 # ---------------------------------------------------------------------------

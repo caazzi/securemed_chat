@@ -81,7 +81,8 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
     y_pos = height - 1.8*inch
 
     # --- Helper to draw a labeled section ---
-    def draw_labeled_section(y_start, label, text):
+    def draw_labeled_section(label, text):
+        nonlocal c, y_pos
         style_body = styles['BodyText']
         style_body.fontName = 'Helvetica'
         style_body.fontSize = 12
@@ -91,34 +92,41 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
         p = Paragraph(full_text, style_body)
 
         p_width, p_height = p.wrapOn(c, width - 2 * inch, height)
-        p.drawOn(c, inch, y_start - p_height)
+        
+        if y_pos - p_height < 1.0 * inch:
+            c.showPage()
+            y_pos = height - 1.0 * inch
 
-        return p_height + (0.35 * inch)
+        p.drawOn(c, inch, y_pos - p_height)
+
+        y_pos = y_pos - p_height - (0.35 * inch)
 
     # --- Main Content - Rendered from structured data ---
 
     # 1. Chief Complaint
-    y_pos -= draw_labeled_section(y_pos, labels['main_concern'], data.get("chief_complaint", not_mentioned_text))
+    draw_labeled_section(labels['main_concern'], data.get("chief_complaint", not_mentioned_text))
 
     # 2. History of Present Illness
+    if y_pos < 1.5 * inch: c.showPage(); y_pos = height - 1.0 * inch
     c.setFont("Helvetica-Bold", 14)
     c.drawString(inch, y_pos, labels['about_symptoms'])
     y_pos -= 0.4 * inch
 
-    y_pos -= draw_labeled_section(y_pos, labels['onset'], data.get("onset", not_mentioned_text))
-    y_pos -= draw_labeled_section(y_pos, labels['character'], data.get("character", not_mentioned_text))
-    y_pos -= draw_labeled_section(y_pos, labels['associated_symptoms'], data.get("associated_symptoms", not_mentioned_text))
+    draw_labeled_section(labels['onset'], data.get("onset", not_mentioned_text))
+    draw_labeled_section(labels['character'], data.get("character", not_mentioned_text))
+    draw_labeled_section(labels['associated_symptoms'], data.get("associated_symptoms", not_mentioned_text))
 
     y_pos -= 0.2 * inch # Extra padding
 
     # 3. Medical History
+    if y_pos < 1.5 * inch: c.showPage(); y_pos = height - 1.0 * inch
     c.setFont("Helvetica-Bold", 14)
     c.drawString(inch, y_pos, labels['health_history'])
     y_pos -= 0.4 * inch
 
-    y_pos -= draw_labeled_section(y_pos, labels['past_history'], data.get("past_medical_history", not_mentioned_text))
-    y_pos -= draw_labeled_section(y_pos, labels['family_history'], data.get("family_history", not_mentioned_text))
-    y_pos -= draw_labeled_section(y_pos, labels['medications'], data.get("medications", not_mentioned_text))
+    draw_labeled_section(labels['past_history'], data.get("past_medical_history", not_mentioned_text))
+    draw_labeled_section(labels['family_history'], data.get("family_history", not_mentioned_text))
+    draw_labeled_section(labels['medications'], data.get("medications", not_mentioned_text))
 
     c.showPage()
     c.save()

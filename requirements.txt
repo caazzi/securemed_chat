@@ -1,20 +1,15 @@
-# Core Framework
-fastapi
-uvicorn
-pydantic
-gunicorn
+# API Framework & Server
+fastapi==0.115.8
+uvicorn==0.34.0
+pydantic==2.11.7
 
-# Google Cloud & Vertex AI
-google-cloud-aiplatform
-langchain-google-vertexai
-
-# LangChain Core Components
-langchain
-langdetect
-
+# GCP & AI
+google-cloud-aiplatform==1.117.0
+langchain==0.3.27
+langchain-google-vertexai==2.1.2
 
 # PDF Generation
-reportlab
+reportlab==4.4.10
 
 # Environment Variable Management
-python-dotenv
+python-dotenv==1.1.1
