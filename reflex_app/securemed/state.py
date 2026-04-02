@@ -36,6 +36,21 @@ class State(rx.State):
         except ValueError:
             pass
 
+    def set_gender(self, val: str):
+        self.gender = val
+
+    def set_lang(self, val: str):
+        self.lang = val
+
+    def set_chief_complaint(self, val: str):
+        self.chief_complaint = val
+
+    def set_initial_answers(self, val: str):
+        self.initial_answers = val
+
+    def set_follow_up_answers(self, val: str):
+        self.follow_up_answers = val
+
     async def init_session(self):
         """Step 0 -> Step 1: Initialize Redis session."""
         if not self.chief_complaint:
