@@ -29,6 +29,13 @@ class State(rx.State):
     initial_questions_text: str = ""
     follow_up_questions_text: str = ""
 
+    def change_age(self, val: str):
+        """Handle string to int conversion for the age input."""
+        try:
+            self.age = int(val) if val else 0
+        except ValueError:
+            pass
+
     async def init_session(self):
         """Step 0 -> Step 1: Initialize Redis session."""
         if not self.chief_complaint:

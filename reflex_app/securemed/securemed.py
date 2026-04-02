@@ -21,7 +21,7 @@ def step_0_demographics() -> rx.Component:
             rx.input(
                 placeholder="Ex: 35", 
                 type="number", 
-                on_change=State.set_age, 
+                on_change=State.change_age, 
                 value=State.age.to(str),
                 width="100%"
             ),
