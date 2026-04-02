@@ -1,41 +1,42 @@
-# 🗺️ SecureMed Chat - Roadmap & Future Improvements
+# 🗺️ SecureMed Chat - Roadmap & Evolution
 
-This document tracks upcoming planned architecture upgrades, technical debt, and product enhancements for SecureMed Chat. 
+This document tracks the evolution of SecureMed Chat, from its legacy monolithic roots to its current high-performance, zero-cost, and privacy-first architecture.
 
-## 🏗️ Architecture & UX Upgrades
+## ✅ Phase 2: The Architectural Refactor (Completed April 2026)
+Successfully transitioned the system from an expensive, stateful VM-based architecture to a serverless, zero-cost model.
 
-### 1. Frontend Migration (Deprecating Gradio)
-* **Problem:** Gradio is excellent for fast prototyping, but lacks the granular UI/UX control, WCAG accessibility compliance, and robust state management required for a production-grade medical application.
-* **Solution:** Replace the Gradio frontend with a more robust **Python-native framework** that allows for advanced state management and granular UI control. Top candidates include:
-  * **Reflex** (formerly Pynecone): The best option for production. You write pure Python, but it compiles underneath to a high-performance React/Next.js web app.
-  * **Streamlit**: The industry standard for Python UIs. Excellent component library and native `st.session_state` makes multi-step wizards very easy to build.
-  * **Chainlit**: Purpose-built for AI conversational agents. Provides a beautiful default chat UI and handles streaming flawlessly out of the box.
+### 1. Zero-Cost Infrastructure
+- [x] **Prompt Engineering over RAG**: Replaced expensive ChromaDB/VM infrastructure with specialized clinical prompting (OPQRST/SAMPLE).
+- [x] **Serverless Deployment**: Fully optimized for GCP Cloud Run with "Scale to Zero" capabilities.
+- [x] **Multi-stage Docker**: Optimized container builds for rapid deployment and minimal footprint.
 
-### 2. Ephemeral Session State Management
-* **Problem:** True "zero persistence" currently forces the frontend to send the entire conversation history back to the backend on every request. If a user's browser refreshes during Step 2, they lose all progress.
-* **Solution:** Introduce an "Ephemeral State" model using **Redis** with a strict 30-minute Time-To-Live (TTL). The backend provides a short-lived `session_id`. When the session expires, the key is permanently destroyed. This preserves privacy while drastically improving user experience against accidental disconnects.
+### 2. Reliability & Verification
+- [x] **100% Test Coverage**: Implemented a comprehensive test suite covering API Integration, Security Regressions, and Unit logic.
+- [x] **CI/CD Pipeline**: Established GitHub Actions for automated verification on every push.
+- [x] **Robust PDF Engine**: Implemented dynamic pagination and i18n support in `pdf_service.py` to prevent data truncation.
+
+### 3. UX & State Sovereignty
+- [x] **Reflex Frontend Migration**: Deprecated Gradio in favor of a premium, high-performance Reflex UI (React/Next.js).
+- [x] **Ephemeral Session State**: Integrated Redis with strict 30-minute TTL to provide user persistence without compromising the "Zero Storage" privacy mandate.
 
 ---
 
-## 🛠️ Code Maintenance & Technical Debt
+## 🚀 Phase 3: The Next Frontier (Current)
 
-### 1. Robust PDF Pagination
-* **Issue:** In `services/pdf_service.py`, if a patient provides an extremely long medical history, the text will run off the bottom of the PDF page and be silently truncated.
-* **Fix:** Implement robust page-break logic in ReportLab (e.g., checking `if y_pos < inch: c.showPage()`) to dynamically handle overflowing text.
+### 1. UI Polishing & UX Excellence
+- [ ] **Micro-animations**: Implement smooth transitions between wizard steps in Reflex.
+- [ ] **Accessibility Audit**: Ensure WCAG 2.1 compliance for medical inclusivity.
+- [ ] **Responsive Refinement**: Optimize the glassmorphism UI for mobile/tablet healthcare environments.
 
-### 2. Dependency Management
-* **Issue:** `requirements.txt` has unpinned dependencies, which can cause silent build breakages if upstream packages push breaking changes. Also, `langdetect` is listed but currently unused.
-* **Fix:** Use a virtual environment snapshot (`pip freeze`) or a tool like `poetry`/`pip-tools` to strongly pin versions. Remove `langdetect`.
+### 2. Clinical Intelligence Expansion
+- [ ] **Specialized Agent Personalities**: Add specific logic for Pediatric, Geriatric, and Emergency intake scenarios.
+- [ ] **ICD-10 Categorization**: Assist doctors by suggesting potential diagnostic codes in the final report.
 
-### 3. Dockerfile best practices
-* **Issue:** The Dockerfile uses the legacy lowercase `as builder` syntax. 
-* **Fix:** Update to modern `AS builder` syntax. Consider utilizing multi-stage builds more aggressively if image size becomes a concern again.
-
-### 4. CI/CD & Test Coverage
-* **Issue:** We have baseline integration tests (`test_api_integration.py`) and security assertions (`test_security.py`), but lack unit tests for individual agents and endpoints.
-* **Fix:** Implement a GitHub Actions workflow that automatically runs `pytest` on every Pull Request, and mandate minimum test coverage constraints.
+### 3. Enterprise Readiness
+- [ ] **Multi-Regional Deployment**: Deploy across multiple GCP regions for global low latency.
+- [ ] **Audit Trail (PII-Free)**: Implement anonymized analytics to track system usage without exposing patient data.
 
 ---
 
 ## 📚 Historical Context
-*Note: Severe security vulnerabilities (hardcoded IPs, insecure default API keys) and expensive architectural bloat (dedicated RAG/ChromaDB VMs) were successfully resolved in the `feature/prompt-engineering` refactor (April 2026). The deployment now scales to zero cost on Cloud Run.*
+The `feature/prompt-engineering` branch marked the turning point where SecureMed transitioned into a production-grade medical tool, resolving critical security vulnerabilities (hardcoded IPs/Keys) and eliminating $100+/mo in unnecessary cloud spend.

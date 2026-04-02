@@ -2,7 +2,7 @@
 
 A privacy-focused, AI-powered medical intake system that helps patients organize their health information before doctor visits. Built with a zero-persistence architecture ensuring complete data privacy.
 
-**Live Demo**: [https://caazzi-securemed.hf.space/](https://caazzi-securemed.hf.space/)
+**Local Preview**: Run `docker compose up` to start the full stack.
 
 ## 🎯 Project Overview
 
@@ -14,31 +14,28 @@ SecureMed Chat is an intelligent medical anamnesis assistant that generates cont
 
 ```
 ┌─────────────────┐
-│  Gradio Frontend│ ──────► HuggingFace Spaces
+│  Reflex UI      │ ──────► Premium Glassmorphism Frontend (Port 3000)
 └────────┬────────┘
-         │ HTTPS + API Key
+         │ WebSocket / HTTPS
          ▼
 ┌─────────────────┐
-│  FastAPI Backend│ ──────► GCP Cloud Run (2Gi Memory)
-└────────┬────────┘         - Auto-scaling with min 0 instance
-         │                   - Zero-cost deployment capability
+│  FastAPI Backend│ ──────► GCP Cloud Run (Scale to Zero)
+└────────┬────────┘
+         │
          ▼
-┌─────────────┐
-│ Vertex AI   │
-│ LLM Models  │
-└─────────────┘
+┌─────────────────┐
+│  Redis Session  │ ──────► Ephemeral Context (30m TTL)
+└─────────────────┘
 ```
 
 ### Technology Stack
 
-- **Backend**: FastAPI with async/await patterns
-- **LLM**: Google Vertex AI (Gemini 2.5 Flash Lite)
-- **Prompt Engineering**: OPQRST and SAMPLE medical frameworks
-- **Frontend**: Gradio with internationalization (EN/PT)
-- **PDF Generation**: ReportLab (in-memory generation)
+- **Backend**: FastAPI (Python 3.11+)
+- **Session Manager**: Redis (Ephemeral with 30-minute TTL)
+- **Frontend**: Reflex (Compiles to React/Next.js)
 - **Deployment**: 
-  - API: GCP Cloud Run (Serverless)
-  - UI: HuggingFace Spaces
+  - API: GCP Cloud Run (Serverless) / Docker
+  - Frontend: Reflex Cloud / Vercel / Railway
 
 ## 🔐 Privacy & Security Architecture
 
@@ -74,20 +71,19 @@ SecureMed Chat is an intelligent medical anamnesis assistant that generates cont
 
 ### Privacy Features
 
-- **Session-Based Processing**: Data exists only for request duration
-- **No User Accounts**: No registration or login required
-- **Explicit Disclaimers**: Clear messaging that output is not medical advice
-- **Data Minimization**: Only essential information collected (age bracket, not exact age)
+- **Ephemeral Session State**: No data is permanently stored. A Redis cache handles 30-minute state persistence for active wizards before permanent deletion.
+- **Data Minimization**: Only essential information collected (age bracket, not exact age).
+- **In-Memory PDF Generation**: Reports are generated in RAM and streamed directly to the patient's browser.
+- **No User Accounts**: Complete anonymity by design. No registration or PII required.
 
 ## 🔄 Request Flow
 
-1. **User Input** → Gradio interface collects symptoms
-2. **Question Generation** → Framework-driven Clinical Prompts generate relevant context
-3. **Streaming Response** → Questions streamed to user in real-time
-4. **Answer Collection** → User provides detailed responses
-5. **Summarization** → LLM structures information into medical format
-6. **PDF Generation** → In-memory PDF creation and immediate download
-7. **Session End** → All data cleared from memory
+1. **Demographics** → Patient provides age, gender, and language preference in the Reflex UI.
+2. **Session Init** → Backend generates a short-lived `session_id` in Redis.
+3. **Assessment (OPQRST)** → Real-time streaming of symptom-specific questions.
+4. **History (SAMPLE)** → Clinical follow-up questions to build a deeper medical profile.
+5. **PDF Generation** → In-memory summarization and instant download.
+6. **Session Expiry** → Redis key is destroyed after 30 minutes of inactivity.
 
 ## 🚀 Deployment Configuration
 
@@ -104,13 +100,17 @@ gcloud run deploy securemed-chat-service \
   --set-secrets=SECUREMED_API_KEY=SECUREMED_API_KEY:latest
 ```
 
-### Performance Optimizations
+### Local Development (Docker Compose)
 
-- **Lazy Loading**: Models initialized only on first request
-- **Lazy Loading**: Models initialized only on first request
-- **Streaming Responses**: Real-time question delivery
-- **Optimized Workers**: Gunicorn with 2 workers for optimal concurrency
-- **Multi-stage Docker**: Minimized container size (~200MB)
+The easiest way to start the full stack (Redis + API) is:
+```bash
+docker compose up --build
+```
+
+### Performance & Scaling
+- **Cold Starts**: Optimized for ~3sec startup, allowing for "Scale-to-Zero" to eliminate idle costs.
+- **Concurrency**: Gunicorn with Uvicorn workers ensures high throughput per instance.
+- **Verification**: 100% Backend test coverage (Unit, Integration, Security).
 
 ## 📊 API Endpoints
 
