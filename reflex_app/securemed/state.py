@@ -32,7 +32,8 @@ class State(rx.State):
     async def init_session(self):
         """Step 0 -> Step 1: Initialize Redis session."""
         if not self.chief_complaint:
-            return rx.window_alert("Please enter a chief complaint.")
+            yield rx.window_alert("Please enter a chief complaint.")
+            return
             
         self.loading = True
         yield
@@ -50,11 +51,12 @@ class State(rx.State):
                     self.session_id = resp.json().get("session_id")
                     self.step = 1
                     # Auto-trigger first questions
-                    await self.get_initial_questions()
+                    async for item in self.get_initial_questions():
+                        yield item
                 else:
-                    rx.window_alert(f"Failed to init session: {resp.text}")
+                    yield rx.window_alert(f"Failed to init session: {resp.text}")
             except Exception as e:
-                rx.window_alert(f"Error: {str(e)}")
+                yield rx.window_alert(f"Error: {str(e)}")
             finally:
                 self.loading = False
 
@@ -85,17 +87,19 @@ class State(rx.State):
                             self.initial_questions_text += chunk
                             yield
             except Exception as e:
-                rx.window_alert(f"Streaming Error: {str(e)}")
+                yield rx.window_alert(f"Streaming Error: {str(e)}")
             finally:
                 self.loading = False
 
     async def submit_initial_answers(self):
         """Step 1 -> Step 2: Push answers and trigger follow-up."""
         if not self.initial_answers:
-            return rx.window_alert("Please answer the questions.")
+            yield rx.window_alert("Please answer the questions.")
+            return
             
         self.step = 2
-        await self.get_follow_up_questions()
+        async for item in self.get_follow_up_questions():
+            yield item
 
     async def get_follow_up_questions(self):
         """Step 2 Streaming: Trigger SAMPLE questions."""
@@ -124,14 +128,15 @@ class State(rx.State):
                             self.follow_up_questions_text += chunk
                             yield
             except Exception as e:
-                rx.window_alert(f"Streaming Error: {str(e)}")
+                yield rx.window_alert(f"Streaming Error: {str(e)}")
             finally:
                 self.loading = False
 
     async def submit_follow_up_answers(self):
         """Step 2 -> Step 3: Finalize."""
         if not self.follow_up_answers:
-            return rx.window_alert("Please answer the follow-up questions.")
+            yield rx.window_alert("Please answer the follow-up questions.")
+            return
         self.step = 3
 
     async def download_report(self):
@@ -153,13 +158,13 @@ class State(rx.State):
                     timeout=30.0
                 )
                 if resp.status_code == 200:
-                    return rx.download(
+                    yield rx.download(
                         data=resp.content,
                         filename="SecureMed_Report.pdf"
                     )
                 else:
-                    rx.window_alert(f"Download failed: {resp.text}")
+                    yield rx.window_alert(f"Download failed: {resp.text}")
             except Exception as e:
-                rx.window_alert(f"Download Error: {str(e)}")
+                yield rx.window_alert(f"Download Error: {str(e)}")
             finally:
                 self.loading = False
