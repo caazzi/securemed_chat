@@ -20,27 +20,24 @@ SecureMed Chat is an intelligent medical anamnesis assistant that generates cont
          ▼
 ┌─────────────────┐
 │  FastAPI Backend│ ──────► GCP Cloud Run (2Gi Memory)
-└────────┬────────┘         - Auto-scaling with min 1 instance
-         │                   - VPC Connector for secure DB access
-         ├──────────┐
-         ▼          ▼
-┌─────────────┐  ┌──────────────┐
-│ Vertex AI   │  │ChromaDB Vector│ ──► GCP VM Instance
-│ LLM Models  │  │    Store      │     (Internal Network Only)
-└─────────────┘  └──────────────┘
+└────────┬────────┘         - Auto-scaling with min 0 instance
+         │                   - Zero-cost deployment capability
+         ▼
+┌─────────────┐
+│ Vertex AI   │
+│ LLM Models  │
+└─────────────┘
 ```
 
 ### Technology Stack
 
 - **Backend**: FastAPI with async/await patterns
 - **LLM**: Google Vertex AI (Gemini 2.5 Flash Lite)
-- **Embeddings**: Gemini Embedding Model
-- **Vector Store**: ChromaDB for medical knowledge retrieval
+- **Prompt Engineering**: OPQRST and SAMPLE medical frameworks
 - **Frontend**: Gradio with internationalization (EN/PT)
 - **PDF Generation**: ReportLab (in-memory generation)
 - **Deployment**: 
   - API: GCP Cloud Run (Serverless)
-  - Vector DB: GCP Compute Engine VM
   - UI: HuggingFace Spaces
 
 ## 🔐 Privacy & Security Architecture
@@ -72,7 +69,6 @@ SecureMed Chat is an intelligent medical anamnesis assistant that generates cont
 
 - **API Key Authentication**: All endpoints protected with X-API-KEY header
 - **Input Sanitization**: All user inputs stripped and validated
-- **Network Isolation**: ChromaDB accessible only via internal VPC
 - **Secret Management**: Using GCP Secret Manager for API keys
 - **TLS/HTTPS**: All communications encrypted in transit
 
@@ -86,7 +82,7 @@ SecureMed Chat is an intelligent medical anamnesis assistant that generates cont
 ## 🔄 Request Flow
 
 1. **User Input** → Gradio interface collects symptoms
-2. **Question Generation** → RAG retrieves relevant medical context
+2. **Question Generation** → Framework-driven Clinical Prompts generate relevant context
 3. **Streaming Response** → Questions streamed to user in real-time
 4. **Answer Collection** → User provides detailed responses
 5. **Summarization** → LLM structures information into medical format
@@ -102,18 +98,16 @@ gcloud run deploy securemed-chat-service \
   --source . \
   --project=securemed-chat \
   --region=southamerica-east1 \
-  --vpc-connector=api-to-db-connector \
   --memory=2Gi \
-  --min-instances=1 \
+  --min-instances=0 \
   --service-account=securemed-cr-sa@securemed-chat.iam.gserviceaccount.com \
-  --set-env-vars=CHROMA_HOST=securemed-chat.southamerica-east1-a.c.securemed-chat.internal,CHROMA_PORT=8000 \
   --set-secrets=SECUREMED_API_KEY=SECUREMED_API_KEY:latest
 ```
 
 ### Performance Optimizations
 
 - **Lazy Loading**: Models initialized only on first request
-- **MMR Retrieval**: Using Maximum Marginal Relevance for diverse context
+- **Lazy Loading**: Models initialized only on first request
 - **Streaming Responses**: Real-time question delivery
 - **Optimized Workers**: Gunicorn with 2 workers for optimal concurrency
 - **Multi-stage Docker**: Minimized container size (~200MB)
@@ -188,10 +182,9 @@ When reviewing the code, please pay special attention to:
 
 ### Key Design Decisions
 
-1. **Why RAG over Fine-tuning?**: Maintains flexibility and avoids training on patient data
-2. **Why ChromaDB?**: Lightweight, efficient for medical document retrieval
-3. **Why Vertex AI?**: HIPAA-compliant infrastructure, regional deployment
-4. **Why In-Memory Processing?**: Absolute privacy guarantee
+1. **Why Prompt Engineering over RAG?**: Foundation models already contain vast medical knowledge. Rigorous clinical frameworks (OPQRST) yield cleaner results than retrieving sparse PDF snippets.
+2. **Why Vertex AI?**: HIPAA-compliant infrastructure, regional deployment
+3. **Why In-Memory Processing?**: Absolute privacy guarantee
 
 ### Performance Metrics
 

@@ -19,12 +19,10 @@ load_dotenv()
 INITIAL_QUESTIONS_URL = os.getenv("INITIAL_QUESTIONS_URL", "http://localhost:8000/api/initial-questions-stream")
 FOLLOW_UP_QUESTIONS_URL = os.getenv("FOLLOW_UP_QUESTIONS_URL", "http://localhost:8000/api/follow-up-questions-stream")
 PDF_URL = os.getenv("PDF_URL", "http://localhost:8000/api/summarize-and-generate-pdf")
-SECUREMED_API_KEY = os.getenv("SECUREMED_API_KEY", "your_default_secret_key_for_dev")
+SECUREMED_API_KEY = os.getenv("SECUREMED_API_KEY")
+if not SECUREMED_API_KEY:
+    raise ValueError("FATAL: SECUREMED_API_KEY environment variable not set. Aborting startup.")
 HEADERS = {"X-API-KEY": SECUREMED_API_KEY}
-
-
-if not SECUREMED_API_KEY or SECUREMED_API_KEY == "your_default_secret_key_for_dev":
-    print("Warning: SECUREMED_API_KEY is not set or is using a default value.")
 
 # --- Internationalization (i18n) Setup ---
 I18N_DICTIONARY = {

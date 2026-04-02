@@ -10,21 +10,11 @@ langchain-google-vertexai
 
 # LangChain Core Components
 langchain
-langchain_community
 langdetect
 
-# Vector Store & Document Processing
-chromadb
 
 # PDF Generation
 reportlab
 
 # Environment Variable Management
 python-dotenv
-
-# HTTP client for ChromaDB communication
-httpx
-requests
-
-#Interface
-gradio

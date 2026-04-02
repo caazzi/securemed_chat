@@ -6,7 +6,7 @@ venv/
 env/
 smc-env/
 
-# Environment Variables
+# Environment Variables & Secrets
 .env
 .envrc
 
@@ -34,6 +34,7 @@ reports/
 .DS_Store
 Thumbs.db
 *~
+*:Zone.Identifier
 
 # Distribution / packaging
 .Python
@@ -87,6 +88,9 @@ docs/_build/
 .vscode/
 *.swp
 *.swo
-*~
 
+# Gradio
 .gradio/
+
+# AI Agent tooling
+.gemini/

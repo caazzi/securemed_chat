@@ -1,0 +1,25 @@
+# Directories that are noisy / irrelevant for AI context
+old_versions/
+.direnv/
+__pycache__/
+.ipynb_checkpoints/
+.gradio/
+.git/
+.pytest_cache/
+
+# Large binary / data files
+knowledge_base/
+vector_store/
+*.pkl
+*.pdf
+
+# Jupyter notebooks (large, not production code)
+*.ipynb
+
+# OS / Windows artifacts
+*:Zone.Identifier
+Thumbs.db
+.DS_Store
+
+# Root-level stale frontend (outdated, not the canonical Gradio app)
+gradio_app.py

@@ -20,12 +20,12 @@ from pydantic import BaseModel, Field
 from langchain_core.runnables import Runnable
 
 from securemed_chat.core.config import SECUREMED_API_KEY
-from securemed_chat.services.rag_service import (
+from securemed_chat.services.agent_service import (
     stream_initial_questions,
     stream_follow_up_questions,
     summarize_and_structure_anamnesis,
-    get_initial_rag_chain,
-    get_follow_up_rag_chain,
+    get_initial_agent_chain,
+    get_follow_up_agent_chain,
     get_structuring_chain
 )
 from securemed_chat.services.pdf_service import generate_pdf_report_in_memory
@@ -75,7 +75,7 @@ router = APIRouter(dependencies=[Depends(get_api_key)])
 @router.post("/initial-questions-stream")
 async def get_initial_questions_streamed(
     request: InitialRequest,
-    rag_chain: Runnable = Depends(get_initial_rag_chain)
+    agent_chain: Runnable = Depends(get_initial_agent_chain)
 ):
     """ Endpoint for the first step that streams RAG-based questions. """
     try:
@@ -84,21 +84,21 @@ async def get_initial_questions_streamed(
         complaint_context = _create_patient_context(request.age, request.gender, sanitized_complaint)
 
         async def event_generator():
-            async for chunk in stream_initial_questions(complaint_context, request.lang, rag_chain):
+            async for chunk in stream_initial_questions(complaint_context, request.lang, agent_chain):
                 yield f"data: {json.dumps(chunk)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except ConnectionError as e:
         logging.error(f"ConnectionError in initial questions: {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail=f"Service Unavailable: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again.")
     except Exception as e:
         logging.error(f"Unhandled exception in initial questions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to generate initial questions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate questions. Please try again.")
 
 @router.post("/follow-up-questions-stream")
 async def get_follow_up_questions_streamed(
     request: FollowUpRequest,
-    deep_dive_rag_chain: Runnable = Depends(get_follow_up_rag_chain)
+    agent_chain: Runnable = Depends(get_follow_up_agent_chain)
 ):
     """ Endpoint for the second step that streams follow-up questions. """
     try:
@@ -108,13 +108,13 @@ async def get_follow_up_questions_streamed(
         complaint_context = _create_patient_context(request.age, request.gender, sanitized_complaint)
 
         async def event_generator():
-            async for chunk in stream_follow_up_questions(complaint_context, sanitized_answers, request.lang, deep_dive_rag_chain):
+            async for chunk in stream_follow_up_questions(complaint_context, sanitized_answers, request.lang, agent_chain):
                 yield f"data: {json.dumps(chunk)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
         logging.error(f"Unhandled exception in follow-up questions: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to generate follow-up questions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate questions. Please try again.")
 
 @router.post("/summarize-and-generate-pdf")
 async def summarize_and_generate_pdf_endpoint(
@@ -137,10 +137,10 @@ async def summarize_and_generate_pdf_endpoint(
         return Response(content=pdf_bytes, media_type='application/pdf', headers=headers)
     except ConnectionError as e:
         logging.error(f"ConnectionError in PDF generation: {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail=f"Service Unavailable: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again.")
     except ValueError as e:
         logging.warning(f"ValueError in PDF generation (likely bad input): {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logging.error(f"Unhandled exception in PDF generation: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
