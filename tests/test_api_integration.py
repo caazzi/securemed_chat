@@ -3,15 +3,11 @@ import os
 import json
 from unittest.mock import patch, MagicMock, AsyncMock
 
-os.environ["SECUREMED_API_KEY"] = "test_api_key_123"
-os.environ["GOOGLE_CLOUD_PROJECT"] = "test_project"
-os.environ["GOOGLE_CLOUD_REGION"] = "us-east1"
-
 from fastapi.testclient import TestClient
 from securemed_chat.main import app
 
 client = TestClient(app)
-HEADERS = {"X-API-KEY": "test_api_key_123"}
+HEADERS = {"X-API-KEY": "ci_test_key_123"}
 
 @patch("securemed_chat.api.endpoints.create_session", new_callable=AsyncMock)
 def test_init_session(mock_create):
