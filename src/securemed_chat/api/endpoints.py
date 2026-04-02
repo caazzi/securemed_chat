@@ -1,14 +1,9 @@
 """
 API Endpoints (Orchestrator).
 
-This module defines the FastAPI routes. It now leverages dependency injection
-to trigger the lazy-loading of services in the rag_service module, ensuring
-the application starts quickly.
-
-REVISIONS:
-- FIX: Corrected typo from `AProuter` to `APIRouter`.
-- Centralized the creation of the `complaint_context` string into a single
-  helper function `_create_patient_context` to avoid code duplication.
+This module defines the FastAPI routes. It leverages dependency injection
+to trigger the lazy-loading of services in the agent_service module, ensuring
+the application starts quickly. Includes Redis-backed ephemeral state.
 """
 import json
 import logging
@@ -29,6 +24,7 @@ from securemed_chat.services.agent_service import (
     get_structuring_chain
 )
 from securemed_chat.services.pdf_service import generate_pdf_report_in_memory
+from securemed_chat.services.session_service import create_session, get_session, update_session
 
 # --- Security & Helper Functions ---
 API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
@@ -46,51 +42,60 @@ def _sanitize_input(text: str) -> str:
 
 def _create_patient_context(age: int, gender: str, complaint: str) -> str:
     """Creates a standardized patient context string."""
-    # This function centralizes the context creation logic.
     return f"A {age}-year-old {gender} presenting with: {complaint}"
 
-# (Pydantic Models are unchanged)
+# --- Data Models (Ephemeral State Design) ---
+class SessionInitRequest(BaseModel):
+    age: int
+    gender: str
+    lang: str
+
 class InitialRequest(BaseModel):
+    session_id: str
     chief_complaint: str = Field(..., max_length=5000)
-    age: int
-    gender: str
-    lang: str
+
 class FollowUpRequest(BaseModel):
-    chief_complaint: str = Field(..., max_length=5000)
-    age: int
-    gender: str
+    session_id: str
     initial_answers: str = Field(..., max_length=5000)
-    lang: str
+
 class SummarizationRequest(BaseModel):
-    chief_complaint: str = Field(..., max_length=5000)
-    age: int
-    gender: str
-    initial_answers: str = Field(..., max_length=5000)
+    session_id: str
     follow_up_answers: str = Field(..., max_length=5000)
-    lang: str
 
 # --- API Router ---
 router = APIRouter(dependencies=[Depends(get_api_key)])
+
+@router.post("/session/init")
+async def init_session(request: SessionInitRequest):
+    """Initializes a new ephemeral Redis session with demographic capabilities."""
+    session_id = await create_session({
+        "age": request.age,
+        "gender": request.gender,
+        "lang": request.lang
+    })
+    return {"session_id": session_id}
 
 @router.post("/initial-questions-stream")
 async def get_initial_questions_streamed(
     request: InitialRequest,
     agent_chain: Runnable = Depends(get_initial_agent_chain)
 ):
-    """ Endpoint for the first step that streams RAG-based questions. """
+    """ Streams OPQRST questions based on chief complaint. """
+    session_data = await get_session(request.session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session expired or invalid")
+        
     try:
         sanitized_complaint = _sanitize_input(request.chief_complaint)
-        # Use the centralized helper function
-        complaint_context = _create_patient_context(request.age, request.gender, sanitized_complaint)
+        await update_session(request.session_id, {"chief_complaint": sanitized_complaint})
+        
+        complaint_context = _create_patient_context(session_data["age"], session_data["gender"], sanitized_complaint)
 
         async def event_generator():
-            async for chunk in stream_initial_questions(complaint_context, request.lang, agent_chain):
+            async for chunk in stream_initial_questions(complaint_context, session_data["lang"], agent_chain):
                 yield f"data: {json.dumps(chunk)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
-    except ConnectionError as e:
-        logging.error(f"ConnectionError in initial questions: {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again.")
     except Exception as e:
         logging.error(f"Unhandled exception in initial questions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate questions. Please try again.")
@@ -100,15 +105,19 @@ async def get_follow_up_questions_streamed(
     request: FollowUpRequest,
     agent_chain: Runnable = Depends(get_follow_up_agent_chain)
 ):
-    """ Endpoint for the second step that streams follow-up questions. """
+    """ Streams SAMPLE follow-up questions. """
+    session_data = await get_session(request.session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session expired or invalid")
+
     try:
-        sanitized_complaint = _sanitize_input(request.chief_complaint)
         sanitized_answers = _sanitize_input(request.initial_answers)
-        # Use the centralized helper function again for consistency
-        complaint_context = _create_patient_context(request.age, request.gender, sanitized_complaint)
+        await update_session(request.session_id, {"initial_answers": sanitized_answers})
+        
+        complaint_context = _create_patient_context(session_data["age"], session_data["gender"], session_data["chief_complaint"])
 
         async def event_generator():
-            async for chunk in stream_follow_up_questions(complaint_context, sanitized_answers, request.lang, agent_chain):
+            async for chunk in stream_follow_up_questions(complaint_context, sanitized_answers, session_data["lang"], agent_chain):
                 yield f"data: {json.dumps(chunk)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -121,26 +130,26 @@ async def summarize_and_generate_pdf_endpoint(
     request: SummarizationRequest,
     structuring_chain: Runnable = Depends(get_structuring_chain)
 ):
-    """ Final endpoint: Summarizes conversation and returns a localized PDF report. """
+    """ Final endpoint: Summarizes conversation and returns a PDF report. """
+    session_data = await get_session(request.session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session expired or invalid")
+
     try:
-        sanitized_complaint = _sanitize_input(request.chief_complaint)
+        sanitized_follow_up = _sanitize_input(request.follow_up_answers)
+        
         structured_data = await summarize_and_structure_anamnesis(
-            chief_complaint=sanitized_complaint,
-            initial_answers=_sanitize_input(request.initial_answers),
-            follow_up_answers=_sanitize_input(request.follow_up_answers),
-            lang=request.lang,
+            chief_complaint=session_data["chief_complaint"],
+            initial_answers=session_data["initial_answers"],
+            follow_up_answers=sanitized_follow_up,
+            lang=session_data["lang"],
             structuring_chain=structuring_chain
         )
-        structured_data['chief_complaint'] = sanitized_complaint
-        pdf_bytes, filename = generate_pdf_report_in_memory(structured_data, lang=request.lang)
+        structured_data['chief_complaint'] = session_data["chief_complaint"]
+        
+        pdf_bytes, filename = generate_pdf_report_in_memory(structured_data, lang=session_data["lang"])
         headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
         return Response(content=pdf_bytes, media_type='application/pdf', headers=headers)
-    except ConnectionError as e:
-        logging.error(f"ConnectionError in PDF generation: {e}", exc_info=True)
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again.")
-    except ValueError as e:
-        logging.warning(f"ValueError in PDF generation (likely bad input): {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logging.error(f"Unhandled exception in PDF generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
