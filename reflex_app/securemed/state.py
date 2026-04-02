@@ -4,8 +4,10 @@ import json
 import asyncio
 from typing import List, Dict
 
-API_BASE_URL = "http://localhost:8000/api"
-API_KEY = "dev_key_123"  # Standard dev key matched in docker-compose
+import os
+# Detect production environment or fallback to local
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://securemed-api-540951606920.southamerica-east1.run.app/api")
+API_KEY = os.environ.get("SECUREMED_API_KEY", "dev_key_123")
 
 class State(rx.State):
     """The app state."""
