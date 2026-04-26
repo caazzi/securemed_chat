@@ -16,12 +16,8 @@ from langchain_core.runnables import Runnable
 
 from securemed_chat.core.config import SECUREMED_API_KEY
 from securemed_chat.services.agent_service import (
-    stream_initial_questions,
-    stream_follow_up_questions,
-    summarize_and_structure_anamnesis,
-    get_initial_agent_chain,
-    get_follow_up_agent_chain,
-    get_structuring_chain
+    stream_interview_questions,
+    get_interview_chain,
 )
 from securemed_chat.services.pdf_service import generate_pdf_report_in_memory
 from securemed_chat.services.session_service import create_session, get_session, update_session
@@ -40,47 +36,70 @@ def _sanitize_input(text: str) -> str:
         return ""
     return text.strip()
 
-def _create_patient_context(age: int, gender: str, complaint: str) -> str:
-    """Creates a standardized patient context string."""
-    return f"A {age}-year-old {gender} presenting with: {complaint}"
-
 # --- Data Models (Ephemeral State Design) ---
 class SessionInitRequest(BaseModel):
-    age: int
-    gender: str
+    # Step 1 — Demographics
+    age_bracket: str
+    sex: str
     lang: str
+    # Step 2 — Chief Complaint
+    specialist: str
+    chief_complaint: str
+    duration: str
+    complaint_detail: str = ""
+    # Step 3 — Medical History
+    conditions: list[str] = []
+    medications: list[str] = []
+    allergies: str = ""
+    # Step 4 — Lifestyle & Family
+    family_history: list[str] = []
+    smoking: str
+    alcohol: str
 
 class InitialRequest(BaseModel):
     session_id: str
     chief_complaint: str = Field(..., max_length=5000)
 
-class FollowUpRequest(BaseModel):
+class InterviewRequest(BaseModel):
     session_id: str
-    initial_answers: str = Field(..., max_length=5000)
 
-class SummarizationRequest(BaseModel):
+class QAPair(BaseModel):
+    question: str
+    answer: str = Field(..., max_length=2000)
+
+class GeneratePdfRequest(BaseModel):
     session_id: str
-    follow_up_answers: str = Field(..., max_length=5000)
+    qa_pairs: list[QAPair] = Field(..., min_length=1, max_length=5)
 
 # --- API Router ---
 router = APIRouter(dependencies=[Depends(get_api_key)])
 
 @router.post("/session/init")
 async def init_session(request: SessionInitRequest):
-    """Initializes a new ephemeral Redis session with demographic capabilities."""
+    """Initializes a new ephemeral Redis session with full form data."""
     session_id = await create_session({
-        "age": request.age,
-        "gender": request.gender,
-        "lang": request.lang
+        "age_bracket": request.age_bracket,
+        "sex": request.sex,
+        "lang": request.lang,
+        "specialist": request.specialist,
+        "chief_complaint": request.chief_complaint,
+        "duration": request.duration,
+        "complaint_detail": request.complaint_detail,
+        "conditions": request.conditions,
+        "medications": request.medications,
+        "allergies": request.allergies,
+        "family_history": request.family_history,
+        "smoking": request.smoking,
+        "alcohol": request.alcohol,
     })
     return {"session_id": session_id}
 
 @router.post("/initial-questions-stream")
 async def get_initial_questions_streamed(
     request: InitialRequest,
-    agent_chain: Runnable = Depends(get_initial_agent_chain)
+    chain: Runnable = Depends(get_interview_chain)
 ):
-    """ Streams OPQRST questions based on chief complaint. """
+    """ Streams interview questions based on chief complaint. """
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
@@ -88,11 +107,10 @@ async def get_initial_questions_streamed(
     try:
         sanitized_complaint = _sanitize_input(request.chief_complaint)
         await update_session(request.session_id, {"chief_complaint": sanitized_complaint})
+        session_data["chief_complaint"] = sanitized_complaint
         
-        complaint_context = _create_patient_context(session_data["age"], session_data["gender"], sanitized_complaint)
-
         async def event_generator():
-            async for chunk in stream_initial_questions(complaint_context, session_data["lang"], agent_chain):
+            async for chunk in stream_interview_questions(session_data, session_data.get("lang", "en"), chain):
                 yield f"data: {json.dumps(chunk)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -100,59 +118,42 @@ async def get_initial_questions_streamed(
         logging.error(f"Unhandled exception in initial questions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate questions. Please try again.")
 
-@router.post("/follow-up-questions-stream")
-async def get_follow_up_questions_streamed(
-    request: FollowUpRequest,
-    agent_chain: Runnable = Depends(get_follow_up_agent_chain)
+@router.post("/interview-questions-stream")
+async def get_interview_questions_streamed(
+    request: InterviewRequest,
+    chain: Runnable = Depends(get_interview_chain)
 ):
-    """ Streams SAMPLE follow-up questions. """
+    """Streams targeted interview questions based on full form context. Single LLM call."""
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
-    if "chief_complaint" not in session_data:
-        raise HTTPException(status_code=422, detail="Session is missing chief complaint. Complete the previous step first.")
 
     try:
-        sanitized_answers = _sanitize_input(request.initial_answers)
-        await update_session(request.session_id, {"initial_answers": sanitized_answers})
-
-        complaint_context = _create_patient_context(session_data["age"], session_data["gender"], session_data["chief_complaint"])
+        lang = session_data.get("lang", "en")
 
         async def event_generator():
-            async for chunk in stream_follow_up_questions(complaint_context, sanitized_answers, session_data["lang"], agent_chain):
+            async for chunk in stream_interview_questions(session_data, lang, chain):
                 yield f"data: {json.dumps(chunk)}\n\n"
 
         return StreamingResponse(event_generator(), media_type="text/event-stream")
     except Exception as e:
-        logging.error(f"Unhandled exception in follow-up questions: {e}", exc_info=True)
+        logging.error(f"Unhandled exception in interview questions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate questions. Please try again.")
 
-@router.post("/summarize-and-generate-pdf")
-async def summarize_and_generate_pdf_endpoint(
-    request: SummarizationRequest,
-    structuring_chain: Runnable = Depends(get_structuring_chain)
-):
-    """ Final endpoint: Summarizes conversation and returns a PDF report. """
+@router.post("/generate-pdf")
+async def generate_pdf_endpoint(request: GeneratePdfRequest):
+    """Generates PDF deterministically from session form data + Q&A pairs. No LLM call."""
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
-    missing = [k for k in ("chief_complaint", "initial_answers") if k not in session_data]
-    if missing:
-        raise HTTPException(status_code=422, detail=f"Session is missing required fields: {missing}. Complete all prior steps first.")
 
     try:
-        sanitized_follow_up = _sanitize_input(request.follow_up_answers)
-
-        structured_data = await summarize_and_structure_anamnesis(
-            chief_complaint=session_data["chief_complaint"],
-            initial_answers=session_data["initial_answers"],
-            follow_up_answers=sanitized_follow_up,
-            lang=session_data["lang"],
-            structuring_chain=structuring_chain
+        qa_pairs = [{"question": pair.question, "answer": pair.answer} for pair in request.qa_pairs]
+        pdf_bytes, filename = generate_pdf_report_in_memory(
+            form=session_data,
+            qa_pairs=qa_pairs,
+            lang=session_data.get("lang", "en")
         )
-        structured_data['chief_complaint'] = session_data["chief_complaint"]
-        
-        pdf_bytes, filename = generate_pdf_report_in_memory(structured_data, lang=session_data["lang"])
         headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
         return Response(content=pdf_bytes, media_type='application/pdf', headers=headers)
     except Exception as e:

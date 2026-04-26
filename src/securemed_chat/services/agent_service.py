@@ -8,8 +8,8 @@ frameworks (OPQRST and SAMPLE).
 import logging
 from typing import AsyncGenerator
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain_core.runnables import Runnable
+from langchain_core.output_parsers import StrOutputParser
 
 from securemed_chat.core.llm import get_llm
 
@@ -30,123 +30,78 @@ def get_language_instructions(lang: str) -> dict:
         "not_mentioned": "Not mentioned"
     }
 
-# --- Lazily Initialized Singletons ---
-_initial_agent_chain: Runnable | None = None
-_follow_up_agent_chain: Runnable | None = None
-_structuring_chain: Runnable | None = None
+# --- Sprint 1: Single Interview Chain ---
+_interview_chain: Runnable | None = None
 
-def get_initial_agent_chain() -> Runnable:
-    """Builds the initial OPQRST questions chain."""
-    global _initial_agent_chain
-    if _initial_agent_chain is None:
-        logging.info("Building OPQRST agent chain for initial questions...")
-
+def get_interview_chain() -> Runnable:
+    """Single interview chain. Receives full form context, generates up to 5 targeted questions."""
+    global _interview_chain
+    if _interview_chain is None:
+        logging.info("Building interview chain...")
         prompt = ChatPromptTemplate.from_messages([
             ("system", (
-                "You are an expert clinical triage nurse conducting a structured medical intake.\n"
-                "Your task is to generate exactly 5 follow-up questions using the OPQRST framework "
-                "(Onset, Provocation/Palliation, Quality, Region/Radiation, Severity, Time).\n"
-                "Output only the numbered list of questions. Do not add pleasantries, explanations, or preamble.\n"
-                "{language_instruction} {example_question}"
+                "You are a clinical intake assistant helping a patient prepare for a medical appointment.\n"
+                "You have received the patient's structured medical form. Your task is to generate up to 5\n"
+                "open-ended follow-up questions to capture what the form could not: the nuanced, specific\n"
+                "details of the patient's current complaint that will help the doctor most.\n\n"
+                "STRICT RULES (DO NOT VIOLATE):\n"
+                "1. YOU ARE NOT A DOCTOR. Never suggest diagnoses, treatments, medications, or causes for symptoms.\n"
+                "2. Do not ask about information already collected in the form (do not re-ask about medications,\n"
+                "   known conditions, or allergies already listed).\n"
+                "3. Focus questions on the current complaint only: character, onset, radiation, severity,\n"
+                "   timing, aggravating/relieving factors, and associated symptoms not yet mentioned.\n"
+                "4. If the chief complaint suggests a critical emergency (e.g., severe chest pain, sudden\n"
+                "   difficulty breathing, loss of consciousness), output ONLY an emergency warning directing\n"
+                "   the patient to seek immediate care — do not generate questions.\n"
+                "5. Generate between 3 and 5 questions. Fewer is better if the form already provides rich context.\n"
+                "6. Use simple language accessible to lay people. Avoid medical jargon.\n"
+                "7. Output only the numbered list of questions. No preamble, no pleasantries.\n"
+                "\n{language_instruction}"
             )),
             ("human", (
-                "The patient's chief complaint is delimited below. Generate 5 OPQRST questions for it.\n"
-                "<chief_complaint>{chief_complaint}</chief_complaint>"
+                "Age bracket: {age_bracket}\n"
+                "Biological sex: {sex}\n"
+                "Specialist: {specialist}\n"
+                "Chief complaint: {chief_complaint}\n"
+                "Duration: {duration}\n"
+                "Additional detail: {complaint_detail}\n"
+                "Pre-existing conditions: {conditions}\n"
+                "Current medications: {medications}\n"
+                "Drug allergies: {allergies}\n"
+                "Family history: {family_history}\n"
+                "Smoking: {smoking}\n"
+                "Alcohol: {alcohol}"
             )),
         ])
+        _interview_chain = prompt | get_llm() | StrOutputParser()
+    return _interview_chain
 
-        _initial_agent_chain = (
-            RunnablePassthrough.assign(
-                language_instruction=lambda x: get_language_instructions(x["lang"])["initial_q_instruction"],
-                example_question=lambda x: get_language_instructions(x["lang"])["example_question"]
-            )
-            | prompt
-            | get_llm()
-            | StrOutputParser()
-        )
-    return _initial_agent_chain
-
-def get_follow_up_agent_chain() -> Runnable:
-    """Builds the follow-up SAMPLE questions chain."""
-    global _follow_up_agent_chain
-    if _follow_up_agent_chain is None:
-        logging.info("Building SAMPLE agent chain for follow-up questions...")
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", (
-                "You are an expert clinical triage nurse conducting a structured medical intake.\n"
-                "Using the SAMPLE framework (Symptoms, Allergies, Medications, Past medical history, Last meal/Events), "
-                "generate exactly 5 follow-up questions focused on the patient's deep medical background: "
-                "past conditions, surgeries, family history, active medications, and allergies.\n"
-                "Output only the numbered list of questions. Do not add pleasantries, explanations, or preamble.\n"
-                "{language_instruction}"
-            )),
-            ("human", (
-                "The patient's chief complaint and symptom answers are delimited below.\n"
-                "<chief_complaint>{chief_complaint}</chief_complaint>\n"
-                "<symptom_answers>{initial_answers}</symptom_answers>\n"
-                "Generate 5 SAMPLE questions about their medical history."
-            )),
-        ])
-
-        _follow_up_agent_chain = (
-            RunnablePassthrough.assign(
-                language_instruction=lambda x: get_language_instructions(x["lang"])["follow_up_q_instruction"],
-            )
-            | prompt
-            | get_llm()
-            | StrOutputParser()
-        )
-    return _follow_up_agent_chain
-
-def get_structuring_chain() -> Runnable:
-    """Builds the JSON summarization chain."""
-    global _structuring_chain
-    if _structuring_chain is None:
-        logging.info("Building structuring chain for summarization...")
-
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", (
-                "You are an expert medical assistant specializing in patient history summarization.\n"
-                "Synthesize the patient's inputs into a structured JSON object using clear, simple language.\n"
-                "If a piece of information was not provided, use \"{not_mentioned}\" as the value.\n"
-                "{language_instruction}\n"
-                "You MUST output ONLY the raw, valid JSON object with EXACTLY these keys: "
-                "onset, character, associated_symptoms, past_medical_history, family_history, medications."
-            )),
-            ("human", (
-                "Summarize the following patient conversation into the required JSON format.\n"
-                "<chief_complaint>{chief_complaint}</chief_complaint>\n"
-                "<symptom_answers>{initial_answers}</symptom_answers>\n"
-                "<history_answers>{follow_up_answers}</history_answers>"
-            )),
-        ])
-
-        _structuring_chain = prompt | get_llm() | JsonOutputParser()
-    return _structuring_chain
-
-# --- Service Functions ---
-async def stream_initial_questions(chief_complaint: str, lang: str, agent_chain: Runnable) -> AsyncGenerator[str, None]:
-    logging.info(f"Streaming OPQRST questions (lang={lang}).")
-    input_dict = {"chief_complaint": chief_complaint, "lang": lang}
-    async for chunk in agent_chain.astream(input_dict):
-        yield chunk
-
-async def stream_follow_up_questions(chief_complaint: str, initial_answers: str, lang: str, agent_chain: Runnable) -> AsyncGenerator[str, None]:
-    logging.info(f"Streaming SAMPLE follow-up questions (lang={lang}).")
-    input_dict = {"chief_complaint": chief_complaint, "initial_answers": initial_answers, "lang": lang}
-    async for chunk in agent_chain.astream(input_dict):
-        yield chunk
-
-async def summarize_and_structure_anamnesis(chief_complaint: str, initial_answers: str, follow_up_answers: str, lang: str, structuring_chain: Runnable) -> dict:
-    logging.info(f"Structuring patient answers into summary format (lang={lang}).")
+async def stream_interview_questions(
+    session_data: dict,
+    lang: str,
+    chain: Runnable
+) -> AsyncGenerator[str, None]:
+    """Streams questions from the interview chain."""
+    logging.info(f"Streaming interview questions (lang={lang}).")
     lang_instructions = get_language_instructions(lang)
+
+    def join_list(items):
+        return ", ".join(items) if items else "None"
+
     input_dict = {
-        "chief_complaint": chief_complaint, 
-        "initial_answers": initial_answers, 
-        "follow_up_answers": follow_up_answers, 
-        "not_mentioned": lang_instructions["not_mentioned"], 
-        "language_instruction": lang_instructions["summary_instruction"]
+        "age_bracket": session_data.get("age_bracket", ""),
+        "sex": session_data.get("sex", ""),
+        "specialist": session_data.get("specialist", ""),
+        "chief_complaint": session_data.get("chief_complaint", ""),
+        "duration": session_data.get("duration", ""),
+        "complaint_detail": session_data.get("complaint_detail", "") or "None",
+        "conditions": join_list(session_data.get("conditions", [])),
+        "medications": join_list(session_data.get("medications", [])),
+        "allergies": session_data.get("allergies", "") or "None",
+        "family_history": join_list(session_data.get("family_history", [])),
+        "smoking": session_data.get("smoking", ""),
+        "alcohol": session_data.get("alcohol", ""),
+        "language_instruction": lang_instructions["initial_q_instruction"],
     }
-    summary_json = await structuring_chain.ainvoke(input_dict)
-    return summary_json
+    async for chunk in chain.astream(input_dict):
+        yield chunk

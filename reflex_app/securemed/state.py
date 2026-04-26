@@ -32,31 +32,38 @@ class State(rx.State):
     def step_names(self) -> List[str]:
         return self._t.get("step_names", [])
     
-    # --- Demographics & Init ---
-    age: int = 35
+    # --- General Form State ---
     gender: str = "Female"
     lang: str = "en"
     session_id: str = ""
     
-    # --- Conversation Content ---
+    # --- Step 2: Chief Complaint ---
+    specialist: str = ""
+    age_bracket: str = "26-35"
     chief_complaint: str = ""
-    initial_answers: str = ""
-    follow_up_answers: str = ""
+    duration: str = ""
+    complaint_detail: str = ""
+
+    # --- Step 3: Medical History ---
+    conditions: List[str] = []
+    medications: List[str] = []
+    allergies_flag: bool = False
+    allergies_text: str = ""
+
+    # --- Step 4: Lifestyle ---
+    family_history: List[str] = []
+    smoking: str = ""
+    alcohol: str = ""
+
+    # --- Conversation Content ---
+    questions: List[str] = []
+    current_answers: List[str] = []
+    _qs_buffer: str = ""
+    summary_text: str = ""
     
     # --- UI State ---
-    step: int = 0  # 0: Demographics, 1: Initial Qs, 2: Follow-up Qs, 3: Final
+    step: int = 0  # 0: Demographics, 1-4: Form, 5: Q&A, 6: Summary
     loading: bool = False
-    
-    # Streaming content
-    initial_questions_text: str = ""
-    follow_up_questions_text: str = ""
-
-    def change_age(self, val: str):
-        """Handle string to int conversion for the age input."""
-        try:
-            self.age = int(val) if val else 0
-        except ValueError:
-            pass
 
     def detect_lang(self):
         """Infer language from browser headers."""
@@ -78,27 +85,95 @@ class State(rx.State):
     def set_chief_complaint(self, val: str):
         self.chief_complaint = val
 
-    def set_initial_answers(self, val: str):
-        self.initial_answers = val
+    def set_age_bracket(self, val: str):
+        self.age_bracket = val
 
-    def set_follow_up_answers(self, val: str):
-        self.follow_up_answers = val
+    def set_duration(self, val: str):
+        self.duration = val
+
+    def set_specialist(self, val: str):
+        self.specialist = val
+
+    def set_complaint_detail(self, val: str):
+        self.complaint_detail = val
+
+    def toggle_condition(self, condition: str):
+        if condition in self.conditions:
+            self.conditions.remove(condition)
+        else:
+            self.conditions.append(condition)
+
+    def toggle_family_history(self, item: str):
+        if item in self.family_history:
+            self.family_history.remove(item)
+        else:
+            self.family_history.append(item)
+
+    def add_medication(self):
+        self.medications.append("")
+
+    def update_medication(self, idx: int, val: str):
+        self.medications[idx] = val
+
+    def remove_medication(self, idx: int):
+        self.medications.pop(idx)
+
+    def set_allergies_flag(self, val: bool):
+        self.allergies_flag = val
+
+    def set_allergies_text(self, val: str):
+        self.allergies_text = val
+
+    def set_smoking(self, val: str):
+        self.smoking = val
+
+    def set_alcohol(self, val: str):
+        self.alcohol = val
+
+    def set_answer(self, idx: int, val: str):
+        answers = self.current_answers.copy()
+        answers[idx] = val
+        self.current_answers = answers
+
+    def go_to_step_1(self):
+        self.step = 1
+
+    def go_to_step_2(self):
+        self.step = 2
+
+    def go_to_step_3(self):
+        self.step = 3
+
+    def go_to_step_4(self):
+        self.step = 4
 
     async def init_session(self):
-        """Step 0 -> Step 1: Initialize Redis session."""
-        if not self.chief_complaint:
-            yield rx.window_alert(self._t["err_chief_complaint"])
-            return
-            
+        """Step 4 -> Step 5: Initialize Redis session."""
         self.loading = True
         yield
         
         async with httpx.AsyncClient() as client:
             try:
-                # 1. Init Session
+                # payload conforming to Sprint 1
+                payload = {
+                    "age_bracket": self.age_bracket,
+                    "sex": self.gender,
+                    "lang": self.lang,
+                    "specialist": self.specialist,
+                    "chief_complaint": self.chief_complaint,
+                    "duration": self.duration,
+                    "complaint_detail": self.complaint_detail,
+                    "conditions": self.conditions,
+                    "medications": [m for m in self.medications if m.strip()],
+                    "allergies": self.allergies_text if self.allergies_flag else "None",
+                    "family_history": self.family_history,
+                    "smoking": self.smoking,
+                    "alcohol": self.alcohol
+                }
+                
                 resp = await client.post(
                     f"{API_BASE_URL}/session/init",
-                    json={"age": self.age, "gender": self.gender, "lang": self.lang},
+                    json=payload,
                     headers={"X-API-KEY": API_KEY},
                     timeout=10.0
                 )
@@ -108,9 +183,11 @@ class State(rx.State):
                         yield rx.window_alert(self._t["err_generic"] + "Invalid session response from server.")
                         return
                     self.session_id = session_id
-                    self.step = 1
-                    # Auto-trigger first questions
-                    async for item in self.get_initial_questions():
+                    self.step = 5
+                    self.current_answers = []
+                    self.questions = []
+                    # Auto-trigger interview questions
+                    async for item in self.get_interview_questions():
                         yield item
                 else:
                     yield rx.window_alert(f"{self._t['err_init']}{resp.text}")
@@ -119,23 +196,24 @@ class State(rx.State):
             finally:
                 self.loading = False
 
-    async def get_initial_questions(self):
-        """Step 1 Streaming: Trigger OPQRST questions."""
+    async def get_interview_questions(self):
+        """Step 5 Streaming: Trigger interview questions."""
         self.loading = True
-        self.initial_questions_text = ""
+        self._qs_buffer = ""
+        self.questions = []
+        self.current_answers = []
         yield
         
         async with httpx.AsyncClient() as client:
             try:
                 headers = {"X-API-KEY": API_KEY}
                 payload = {
-                    "session_id": self.session_id,
-                    "chief_complaint": self.chief_complaint
+                    "session_id": self.session_id
                 }
                 
                 async with client.stream(
                     "POST", 
-                    f"{API_BASE_URL}/initial-questions-stream", 
+                    f"{API_BASE_URL}/interview-questions-stream", 
                     json=payload, 
                     headers=headers,
                     timeout=60.0
@@ -143,63 +221,41 @@ class State(rx.State):
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             chunk = json.loads(line[len("data: "):])
-                            self.initial_questions_text += chunk
+                            self._qs_buffer += chunk
+                            import re
+                            # Match lines like "1. Question", "2) Question", etc. Very permissive match
+                            qs = [q.strip() for q in re.split(r'\n(?:\d+[\.\)]|\-)\s*', '\n' + self._qs_buffer) if q.strip()]
+                            self.questions = qs
+                            
+                            while len(self.current_answers) < len(self.questions):
+                                self.current_answers.append("")
                             yield
             except Exception as e:
                 yield rx.window_alert(f"{self._t['err_stream']}{str(e)}")
             finally:
                 self.loading = False
 
-    async def submit_initial_answers(self):
-        """Step 1 -> Step 2: Push answers and trigger follow-up."""
-        if not self.initial_answers:
-            yield rx.window_alert(self._t["err_initial_ans"])
+    async def submit_answers(self):
+        """Step 5 -> Step 6: Finalize."""
+        if any(not ans.strip() for ans in self.current_answers[:len(self.questions)]):
+            yield rx.window_alert(self._t.get("err_followup_ans", "Please answer all questions."))
             return
-            
-        self.step = 2
-        async for item in self.get_follow_up_questions():
-            yield item
-
-    async def get_follow_up_questions(self):
-        """Step 2 Streaming: Trigger SAMPLE questions."""
-        self.loading = True
-        self.follow_up_questions_text = ""
-        yield
         
-        async with httpx.AsyncClient() as client:
-            try:
-                headers = {"X-API-KEY": API_KEY}
-                payload = {
-                    "session_id": self.session_id,
-                    "initial_answers": self.initial_answers
-                }
-                
-                async with client.stream(
-                    "POST", 
-                    f"{API_BASE_URL}/follow-up-questions-stream", 
-                    json=payload, 
-                    headers=headers,
-                    timeout=60.0
-                ) as response:
-                    async for line in response.aiter_lines():
-                        if line.startswith("data: "):
-                            chunk = json.loads(line[len("data: "):])
-                            self.follow_up_questions_text += chunk
-                            yield
-            except Exception as e:
-                yield rx.window_alert(f"{self._t['err_stream']}{str(e)}")
-            finally:
-                self.loading = False
-
-    async def submit_follow_up_answers(self):
-        """Step 2 -> Step 3: Finalize."""
-        if not self.follow_up_answers:
-            yield rx.window_alert(self._t["err_followup_ans"])
-            return
-        self.step = 3
+        # Build plain text summary for clipboard
+        qs_ans_text = "\n\n".join(
+            f"Q{i+1}: {q}\nA: {a}" 
+            for i, (q, a) in enumerate(zip(self.questions, self.current_answers))
+        )
+        self.summary_text = (
+            f"--- Patient Intake ---\n"
+            f"Specialist: {self.specialist}\n"
+            f"Chief Complaint: {self.chief_complaint}\n\n"
+            f"--- Questions & Answers ---\n{qs_ans_text}"
+        )
+        self.step = 6
 
     async def download_report(self):
-        """Step 3: Securely fetch PDF with API Key and trigger download."""
+        """Step 6: Securely fetch PDF with API Key and trigger download."""
         self.loading = True
         yield
         
@@ -208,10 +264,13 @@ class State(rx.State):
                 headers = {"X-API-KEY": API_KEY}
                 payload = {
                     "session_id": self.session_id,
-                    "follow_up_answers": self.follow_up_answers
+                    "qa_pairs": [
+                        {"question": q, "answer": a} 
+                        for q, a in zip(self.questions, self.current_answers)
+                    ]
                 }
                 resp = await client.post(
-                    f"{API_BASE_URL}/summarize-and-generate-pdf",
+                    f"{API_BASE_URL}/generate-pdf",
                     json=payload,
                     headers=headers,
                     timeout=30.0

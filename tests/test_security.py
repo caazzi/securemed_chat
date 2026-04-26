@@ -74,3 +74,23 @@ class TestP5_ErrorResponsesSanitized:
         assert leaky == [], (
             f"Found error details leaking exception text: {leaky}"
         )
+
+# ---------------------------------------------------------------------------
+# P6: Auto destruction notices & Emergency rules
+# ---------------------------------------------------------------------------
+class TestP6_Sprint5Features:
+    def test_auto_destruction_notice_en(self):
+        from reflex_app.securemed.i18n import translations
+        assert "deleted" in translations["en"]["complete_desc"].lower()
+
+    def test_auto_destruction_notice_pt(self):
+        from reflex_app.securemed.i18n import translations
+        assert "apagados" in translations["pt"]["complete_desc"].lower()
+
+    def test_emergency_rule_in_interview_prompt(self):
+        from securemed_chat.services.agent_service import get_interview_chain
+        chain = get_interview_chain()
+        prompt = chain.steps[0]
+        system_msg = str(prompt.messages[0])
+        assert "emergency" in system_msg.lower()
+        assert "do not generate questions" in system_msg.lower()

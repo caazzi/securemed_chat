@@ -1,14 +1,16 @@
+# Environment Variables & Secrets
+.env
+.envrc
+*credentials*.json
+
+
 # Python Virtual Environment
 .direnv/
-python-3.10.6/
 .venv/
 venv/
 env/
 smc-env/
-
-# Environment Variables & Secrets
-.env
-.envrc
+python-3.10.6/
 
 # Python Cache and Compiled Files
 __pycache__/
@@ -19,16 +21,7 @@ __pycache__/
 
 # Jupyter Notebook
 .ipynb_checkpoints/
-
-# Data & Model Files
-*.pkl
-vector_store/
-generated_reports/
-knowledge_base/
-
-# Old files
-old_versions/
-reports/
+*.ipynb_checkpoints
 
 # OS-specific files
 .DS_Store
@@ -36,10 +29,9 @@ Thumbs.db
 *~
 *:Zone.Identifier
 
-# Distribution / packaging
+# Build / Packaging
 .Python
 build/
-develop-eggs/
 dist/
 downloads/
 eggs/
@@ -54,16 +46,12 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
-# PyInstaller
 *.manifest
 *.spec
-
-# Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# Unit Test / Coverage Reports
 htmlcov/
 .tox/
 .nox/
@@ -76,12 +64,12 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Sphinx Documentation
+docs/_build/
+
 # Translations
 *.mo
 *.pot
-
-# Sphinx documentation
-docs/_build/
 
 # IDE / Editor specific
 .idea/
@@ -89,8 +77,18 @@ docs/_build/
 *.swp
 *.swo
 
-# Gradio
-.gradio/
+# Data & Model Files
+*.pkl
+vector_store/
+generated_reports/
+knowledge_base/
+reports/
 
 # AI Agent tooling
 .gemini/
+.agentignore
+
+# Reflex App Tooling
+.web/
+.states/
+*.db

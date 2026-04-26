@@ -3,13 +3,14 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from langchain_core.language_models import FakeListChatModel
 from securemed_chat.services.agent_service import (
     get_language_instructions,
-    get_initial_agent_chain,
-    get_follow_up_agent_chain,
-    get_structuring_chain,
-    stream_initial_questions,
-    stream_follow_up_questions,
-    summarize_and_structure_anamnesis
+    get_interview_chain,
+    stream_interview_questions
 )
+import securemed_chat.services.agent_service as agent_service
+
+@pytest.fixture(autouse=True)
+def reset_singletons():
+    agent_service._interview_chain = None
 
 def test_language_instructions_en():
     instr = get_language_instructions("en")
@@ -23,45 +24,90 @@ def test_language_instructions_pt():
 
 @pytest.mark.asyncio
 @patch("securemed_chat.services.agent_service.get_llm")
-async def test_initial_questions_chain_workflow(mock_get_llm):
-    fake_llm = FakeListChatModel(responses=["1. Question 1", "2. Question 2"])
+async def test_interview_chain_streams_questions(mock_get_llm):
+    fake_llm = FakeListChatModel(responses=["1. Question A?\n2. Question B?"])
     mock_get_llm.return_value = fake_llm
     
-    chain = get_initial_agent_chain()
+    chain = get_interview_chain()
+    session_data = {
+        "age_bracket": "26-35",
+        "sex": "Female",
+        "specialist": "Cardiology",
+        "chief_complaint": "Chest pain",
+        "duration": "Weeks",
+        "complaint_detail": "",
+        "conditions": [],
+        "medications": [],
+        "allergies": "",
+        "family_history": [],
+        "smoking": "Never",
+        "alcohol": "Rarely"
+    }
+    
     questions = []
-    async for chunk in stream_initial_questions("Headache", "en", chain):
+    async for chunk in stream_interview_questions(session_data, "en", chain):
         questions.append(chunk)
     
     full_text = "".join(questions)
-    assert "Question 1" in full_text
+    assert "Question A" in full_text
     assert mock_get_llm.called
 
 @pytest.mark.asyncio
 @patch("securemed_chat.services.agent_service.get_llm")
-async def test_follow_up_questions_chain_workflow(mock_get_llm):
-    fake_llm = FakeListChatModel(responses=["1. History?"])
+async def test_interview_chain_pt(mock_get_llm):
+    fake_llm = FakeListChatModel(responses=["1. Pergunta A?"])
     mock_get_llm.return_value = fake_llm
     
-    chain = get_follow_up_agent_chain()
+    chain = get_interview_chain()
+    session_data = {
+        "age_bracket": "26-35",
+        "sex": "Female",
+        "specialist": "Cardiology",
+    }
+    
     questions = []
-    async for chunk in stream_follow_up_questions("Headache", "It started yesterday.", "en", chain):
+    async for chunk in stream_interview_questions(session_data, "pt", chain):
         questions.append(chunk)
     
     full_text = "".join(questions)
-    assert "History" in full_text
+    assert "Pergunta A" in full_text
     assert mock_get_llm.called
+
+def test_interview_chain_prompt_contains_all_form_fields():
+    chain = get_interview_chain()
+    prompt = chain.steps[0]
+    expected_vars = [
+        "age_bracket", "sex", "specialist", "chief_complaint", "duration",
+        "complaint_detail", "conditions", "medications", "allergies",
+        "family_history", "smoking", "alcohol", "language_instruction"
+    ]
+    for var in expected_vars:
+        assert var in prompt.input_variables
+
+def test_interview_prompt_contains_emergency_rule():
+    chain = get_interview_chain()
+    prompt = chain.steps[0]
+    system_msg = str(prompt.messages[0])
+    assert "emergency" in system_msg.lower()
+    assert "do not generate questions" in system_msg.lower()
 
 @pytest.mark.asyncio
 @patch("securemed_chat.services.agent_service.get_llm")
-async def test_structuring_chain_workflow(mock_get_llm):
-    # Mocking JsonOutputParser's expectation of JSON string
-    fake_json = '{"onset": "yesterday", "character": "sharp", "associated_symptoms": "none", "past_medical_history": "none", "family_history": "none", "medications": "none"}'
-    fake_llm = FakeListChatModel(responses=[fake_json])
+async def test_emergency_detection_in_output(mock_get_llm):
+    fake_llm = FakeListChatModel(responses=["⚠️ EMERGENCY: Please call 911 immediately."])
     mock_get_llm.return_value = fake_llm
     
-    chain = get_structuring_chain()
-    result = await summarize_and_structure_anamnesis("Headache", "yesterday", "none", "en", chain)
+    chain = get_interview_chain()
+    session_data = {
+        "chief_complaint": "severe chest pain"
+    }
     
-    assert result["onset"] == "yesterday"
-    assert "character" in result
-    assert mock_get_llm.called
+    output = []
+    async for chunk in stream_interview_questions(session_data, "en", chain):
+        output.append(chunk)
+        
+    full_text = "".join(output)
+    
+    lower_text = full_text.lower()
+    assert any(word in lower_text for word in ["emergency", "911", "immediate"])
+    assert not full_text.startswith("1.")

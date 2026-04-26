@@ -1,56 +1,77 @@
 import pytest
+from unittest.mock import patch
 from securemed_chat.services.pdf_service import generate_pdf_report_in_memory, translations
-from unittest.mock import patch, MagicMock
 
-def test_pdf_generation_i18n_en():
-    data = {
-        "chief_complaint": "Severe headache",
-        "onset": "2 days ago",
-        "character": "throbbing",
-        "associated_symptoms": "none",
-        "past_medical_history": "none",
-        "family_history": "none",
-        "medications": "ibuprofen"
-    }
-    pdf_bytes, filename = generate_pdf_report_in_memory(data, lang="en")
+MINIMAL_FORM = {
+    "specialist": "Gastroenterologist",
+    "age_bracket": "26-35",
+    "sex": "Female",
+    "chief_complaint": "Stomach pain",
+    "duration": "Weeks",
+    "complaint_detail": "",
+    "conditions": [],
+    "medications": [],
+    "allergies": "",
+    "family_history": [],
+    "smoking": "Never smoked",
+    "alcohol": "Rarely",
+}
+
+MINIMAL_QA = [{"question": "Any nausea?", "answer": "Yes, sometimes."}]
+
+def test_pdf_valid_bytes_en():
+    pdf_bytes, filename = generate_pdf_report_in_memory(MINIMAL_FORM, MINIMAL_QA, lang="en")
     assert pdf_bytes.startswith(b"%PDF-")
-    assert "Medical_Summary_Report.pdf" == filename
+    assert filename == "Medical_Summary_Report.pdf"
 
-def test_pdf_generation_i18n_pt():
-    data = {
-        "chief_complaint": "Dor de cabeça severa",
-        "onset": "2 dias atrás",
-        "character": "pulsante",
-        "associated_symptoms": "nenhum",
-        "past_medical_history": "nenhum",
-        "family_history": "nenhum",
-        "medications": "ibuprofeno"
-    }
-    pdf_bytes, filename = generate_pdf_report_in_memory(data, lang="pt")
+def test_pdf_valid_bytes_pt():
+    pdf_bytes, filename = generate_pdf_report_in_memory(MINIMAL_FORM, MINIMAL_QA, lang="pt")
     assert pdf_bytes.startswith(b"%PDF-")
-    assert "Resumo_Medico.pdf" == filename
+    assert filename == "Resumo_Medico.pdf"
 
+@patch("securemed_chat.services.pdf_service.Paragraph")
 @patch("securemed_chat.services.pdf_service.canvas.Canvas")
-def test_pdf_pagination_logic(mock_canvas_class):
-    """Verify that c.showPage() is called when content exceeds page height."""
-    mock_canvas = mock_canvas_class.return_value
-    
-    # Create a huge history that definitely triggers pagination
-    long_text = "Pain. " * 500 
-    data = {
-        "chief_complaint": long_text,
-        "onset": "3 days ago",
-        "character": "sharp",
-        "associated_symptoms": "nausea",
-        "past_medical_history": "none",
-        "family_history": "none",
-        "medications": "none"
-    }
-    
-    generate_pdf_report_in_memory(data, lang="en")
-    
-    # showPage should be called at least once (header + title + enormous complaint + final showPage)
-    # The final showPage is always called before save() in the implementation.
-    # Total calls: Initial setup calls + any mid-page breaks + the final one.
-    assert mock_canvas.showPage.call_count >= 1
-    assert mock_canvas.save.called
+def test_pdf_renders_form_section(mock_canvas_class, mock_paragraph):
+    mock_paragraph.return_value.wrapOn.return_value = (100, 20)
+    form = {**MINIMAL_FORM, "specialist": "Cardio", "chief_complaint": "chest pain"}
+    generate_pdf_report_in_memory(form, MINIMAL_QA, lang="en")
+    all_text = " ".join(str(call) for call in mock_paragraph.call_args_list)
+    all_text += " ".join(str(call) for call in mock_canvas_class.return_value.drawString.call_args_list)
+    assert "Cardio" in all_text
+    assert "chest pain" in all_text
+
+@patch("securemed_chat.services.pdf_service.Paragraph")
+@patch("securemed_chat.services.pdf_service.canvas.Canvas")
+def test_pdf_renders_qa_section(mock_canvas_class, mock_paragraph):
+    mock_paragraph.return_value.wrapOn.return_value = (100, 20)
+    qa = [{"question": "How severe?", "answer": "Very bad"}]
+    generate_pdf_report_in_memory(MINIMAL_FORM, qa, lang="en")
+    all_text = " ".join(str(call) for call in mock_paragraph.call_args_list)
+    assert "How severe?" in all_text
+    assert "Very bad" in all_text
+
+@patch("securemed_chat.services.pdf_service.Paragraph")
+@patch("securemed_chat.services.pdf_service.canvas.Canvas")
+def test_pdf_none_reported_for_empty_lists(mock_canvas_class, mock_paragraph):
+    mock_paragraph.return_value.wrapOn.return_value = (100, 20)
+    form = {**MINIMAL_FORM, "conditions": [], "medications": [], "family_history": []}
+    generate_pdf_report_in_memory(form, MINIMAL_QA, lang="en")
+    all_text = " ".join(str(call) for call in mock_paragraph.call_args_list)
+    assert "None reported" in all_text
+
+def test_pdf_empty_qa_pairs_does_not_crash():
+    pdf_bytes, _ = generate_pdf_report_in_memory(MINIMAL_FORM, [], lang="en")
+    assert pdf_bytes.startswith(b"%PDF-")
+
+@patch("securemed_chat.services.pdf_service.Paragraph")
+@patch("securemed_chat.services.pdf_service.canvas.Canvas")
+def test_pdf_pagination_long_answer(mock_canvas_class, mock_paragraph):
+    mock_paragraph.return_value.wrapOn.return_value = (100, 600)
+    qa = [{"question": "Describe your symptoms", "answer": "word " * 500}]
+    generate_pdf_report_in_memory(MINIMAL_FORM, qa, lang="en")
+    assert mock_canvas_class.return_value.showPage.call_count >= 1
+
+def test_pdf_unknown_lang_defaults_to_en():
+    pdf_bytes, filename = generate_pdf_report_in_memory(MINIMAL_FORM, MINIMAL_QA, lang="xx")
+    assert pdf_bytes.startswith(b"%PDF-")
+    assert filename == "Medical_Summary_Report.pdf"

@@ -18,42 +18,53 @@ translations = {
         "generated_on": "Gerado em",
         "disclaimer": "Aviso: Apenas para fins informativos. Não é um conselho médico.",
         "title": "Seu Resumo de Saúde",
-        "main_concern": "Minha Principal Queixa de Saúde",
-        "about_symptoms": "Sobre Meus Sintomas Atuais",
-        "onset": "Quando começou",
-        "character": "Como é a sensação",
-        "associated_symptoms": "Outros sintomas relacionados",
-        "health_history": "Meu Histórico de Saúde Geral",
-        "past_history": "Condições ou cirurgias passadas",
-        "family_history": "Condições de saúde na família",
-        "medications": "Medicamentos e alergias atuais",
-        "not_mentioned": "Não mencionado",
+        "appointment": "Consulta",
+        "age_bracket": "Faixa etária",
+        "sex": "Sexo biológico",
+        "duration": "Duração",
+        "complaint_detail": "Detalhes adicionais",
+        "conditions": "Condições pré-existentes",
+        "medications": "Medicamentos em uso",
+        "allergies": "Alergias a medicamentos",
+        "family_history": "Histórico familiar",
+        "smoking": "Tabagismo",
+        "alcohol": "Álcool",
+        "qa_section_title": "Perguntas Clínicas e Respostas do Paciente",
+        "question_label": "P",
+        "answer_label": "R",
+        "none_reported": "Não informado",
         "filename": "Resumo_Medico.pdf"
     },
     "en": {
         "generated_on": "Generated on",
         "disclaimer": "Disclaimer: For informational purposes only. Not medical advice.",
         "title": "Your Health Summary",
-        "main_concern": "My Main Health Concern",
-        "about_symptoms": "About My Current Symptoms",
-        "onset": "When it started",
-        "character": "How it feels",
-        "associated_symptoms": "Other related symptoms",
-        "health_history": "My Overall Health History",
-        "past_history": "Past conditions or surgeries",
-        "family_history": "Family health conditions",
-        "medications": "Current medications & allergies",
-        "not_mentioned": "Not mentioned",
+        "appointment": "Appointment",
+        "age_bracket": "Age bracket",
+        "sex": "Biological sex",
+        "duration": "Duration",
+        "complaint_detail": "Additional details",
+        "conditions": "Pre-existing conditions",
+        "medications": "Current medications",
+        "allergies": "Drug allergies",
+        "family_history": "Family history",
+        "smoking": "Smoking",
+        "alcohol": "Alcohol",
+        "qa_section_title": "Clinical Questions & Patient Answers",
+        "question_label": "Q",
+        "answer_label": "A",
+        "none_reported": "None reported",
         "filename": "Medical_Summary_Report.pdf"
     }
 }
 
-def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, str]:
+def generate_pdf_report_in_memory(form: dict, qa_pairs: list, lang: str = 'en') -> tuple[bytes, str]:
     """
-    Generates a PDF from a structured dictionary, supporting multiple languages.
+    Generates a PDF from a structured form and Q&A pairs, supporting multiple languages.
 
     Args:
-        data (dict): The structured data from the LLM.
+        form (dict): The structured data from user input.
+        qa_pairs (list): List of Q&A dictionaries or objects.
         lang (str): The language code ('pt' or 'en') for the report labels.
 
     Returns:
@@ -61,7 +72,7 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
     """
     # Select the correct labels, defaulting to English if lang is invalid
     labels = translations.get(lang, translations['en'])
-    not_mentioned_text = labels.get("not_mentioned", "N/A")
+    none_reported_text = labels.get("none_reported", "None reported")
 
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
@@ -79,17 +90,17 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
     c.drawString(inch, height - 1.2*inch, labels['title'])
     c.line(inch, height - 1.3*inch, width - inch, height - 1.3*inch)
 
-    y_pos = height - 1.8*inch
+    y_pos = height - 1.6*inch
 
     # --- Helper to draw a labeled section ---
-    def draw_labeled_section(label, text):
+    def draw_labeled_section(label, text, bold_label=True, padding=0.35 * inch):
         nonlocal c, y_pos
         style_body = styles['BodyText']
         style_body.fontName = 'Helvetica'
         style_body.fontSize = 12
         style_body.leading = 16
 
-        full_text = f"<b>{label}:</b> {text}"
+        full_text = f"<b>{label}:</b> {text}" if bold_label else f"{label}: {text}"
         p = Paragraph(full_text, style_body)
 
         p_width, p_height = p.wrapOn(c, width - 2 * inch, height)
@@ -100,34 +111,51 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
 
         p.drawOn(c, inch, y_pos - p_height)
 
-        y_pos = y_pos - p_height - (0.35 * inch)
+        y_pos = y_pos - p_height - padding
 
-    # --- Main Content - Rendered from structured data ---
+    def get_list_text(form_list):
+        if not form_list:
+            return none_reported_text
+        if isinstance(form_list, list):
+            return ", ".join(form_list) if form_list else none_reported_text
+        return form_list
 
-    # 1. Chief Complaint
-    draw_labeled_section(labels['main_concern'], data.get("chief_complaint", not_mentioned_text))
+    # --- Patient Summary Section ---
+    
+    # Demographics & Appointment
+    draw_labeled_section(labels['appointment'], form.get("specialist", none_reported_text), padding=0.2 * inch)
+    draw_labeled_section(labels['age_bracket'], form.get("age_bracket", none_reported_text), padding=0.2 * inch)
+    draw_labeled_section(labels['sex'], form.get("sex", none_reported_text))
 
-    # 2. History of Present Illness
-    if y_pos < 1.5 * inch: c.showPage(); y_pos = height - 1.0 * inch
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(inch, y_pos, labels['about_symptoms'])
-    y_pos -= 0.4 * inch
+    # Chief Complaint
+    draw_labeled_section("Chief Complaint" if lang == "en" else "Queixa Principal", form.get("chief_complaint", none_reported_text), padding=0.2 * inch)
+    draw_labeled_section(labels['duration'], form.get("duration", none_reported_text), padding=0.2 * inch)
+    draw_labeled_section(labels['complaint_detail'], form.get("complaint_detail") or none_reported_text)
 
-    draw_labeled_section(labels['onset'], data.get("onset", not_mentioned_text))
-    draw_labeled_section(labels['character'], data.get("character", not_mentioned_text))
-    draw_labeled_section(labels['associated_symptoms'], data.get("associated_symptoms", not_mentioned_text))
+    # History
+    draw_labeled_section(labels['conditions'], get_list_text(form.get("conditions")), padding=0.2 * inch)
+    draw_labeled_section(labels['medications'], get_list_text(form.get("medications")), padding=0.2 * inch)
+    draw_labeled_section(labels['allergies'], form.get("allergies") or none_reported_text, padding=0.2 * inch)
+    draw_labeled_section(labels['family_history'], get_list_text(form.get("family_history")), padding=0.2 * inch)
+    draw_labeled_section(labels['smoking'], form.get("smoking", none_reported_text), padding=0.2 * inch)
+    draw_labeled_section(labels['alcohol'], form.get("alcohol", none_reported_text))
 
-    y_pos -= 0.2 * inch # Extra padding
+    # --- Clinical Questions & Patient Answers Section ---
+    if qa_pairs:
+        if y_pos < 2.0 * inch: c.showPage(); y_pos = height - 1.0 * inch
+        else: y_pos -= 0.5 * inch
+        
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(inch, y_pos, labels['qa_section_title'])
+        c.line(inch, y_pos - 0.1*inch, width - inch, y_pos - 0.1*inch)
+        y_pos -= 0.4 * inch
 
-    # 3. Medical History
-    if y_pos < 1.5 * inch: c.showPage(); y_pos = height - 1.0 * inch
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(inch, y_pos, labels['health_history'])
-    y_pos -= 0.4 * inch
-
-    draw_labeled_section(labels['past_history'], data.get("past_medical_history", not_mentioned_text))
-    draw_labeled_section(labels['family_history'], data.get("family_history", not_mentioned_text))
-    draw_labeled_section(labels['medications'], data.get("medications", not_mentioned_text))
+        for i, qa in enumerate(qa_pairs):
+            q_text = qa.get("question", "") if isinstance(qa, dict) else getattr(qa, "question", "")
+            a_text = qa.get("answer", "") if isinstance(qa, dict) else getattr(qa, "answer", "")
+            
+            draw_labeled_section(f"{labels['question_label']}{i+1}", q_text, bold_label=True, padding=0.15 * inch)
+            draw_labeled_section(labels['answer_label'], a_text, bold_label=True)
 
     c.showPage()
     c.save()
@@ -136,3 +164,4 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
     buffer.close()
     logging.info(f"PDF report generated in-memory (lang={lang}, size={len(pdf_bytes)} bytes).")
     return pdf_bytes, labels['filename']
+
