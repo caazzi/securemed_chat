@@ -4,6 +4,7 @@ Generates PDF reports in memory with internationalization (i18n) support
 for labels in English and Portuguese.
 """
 import io
+import logging
 from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -133,5 +134,5 @@ def generate_pdf_report_in_memory(data: dict, lang: str = 'en') -> tuple[bytes, 
 
     pdf_bytes = buffer.getvalue()
     buffer.close()
-    print(f"📄 Structured PDF report (lang={lang}) successfully generated in-memory.")
+    logging.info(f"PDF report generated in-memory (lang={lang}, size={len(pdf_bytes)} bytes).")
     return pdf_bytes, labels['filename']

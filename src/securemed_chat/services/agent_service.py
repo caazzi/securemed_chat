@@ -40,25 +40,28 @@ def get_initial_agent_chain() -> Runnable:
     global _initial_agent_chain
     if _initial_agent_chain is None:
         logging.info("Building OPQRST agent chain for initial questions...")
-        
-        PROMPT_TEMPLATE = """System: You are an expert clinical diagnostician.
-Your task is to help structure a patient's medical history using the OPQRST framework (Onset, Provocation/Palliation, Quality, Region/Radiation, Severity, Time).
 
-PATIENT CHIEF COMPLAINT: {chief_complaint}
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", (
+                "You are an expert clinical triage nurse conducting a structured medical intake.\n"
+                "Your task is to generate exactly 5 follow-up questions using the OPQRST framework "
+                "(Onset, Provocation/Palliation, Quality, Region/Radiation, Severity, Time).\n"
+                "Output only the numbered list of questions. Do not add pleasantries, explanations, or preamble.\n"
+                "{language_instruction} {example_question}"
+            )),
+            ("human", (
+                "The patient's chief complaint is delimited below. Generate 5 OPQRST questions for it.\n"
+                "<chief_complaint>{chief_complaint}</chief_complaint>"
+            )),
+        ])
 
-QUESTION: Based purely on clinical best practices for this chief complaint, generate a numbered list of exactly 5 essential follow-up questions. 
-Act as a triage nurse asking the patient directly. {example_question} 
-Do not add any conversational text or pleasantries. {language_instruction}"""
-        
-        prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-        
         _initial_agent_chain = (
             RunnablePassthrough.assign(
                 language_instruction=lambda x: get_language_instructions(x["lang"])["initial_q_instruction"],
                 example_question=lambda x: get_language_instructions(x["lang"])["example_question"]
-            ) 
-            | prompt 
-            | get_llm() 
+            )
+            | prompt
+            | get_llm()
             | StrOutputParser()
         )
     return _initial_agent_chain
@@ -68,25 +71,30 @@ def get_follow_up_agent_chain() -> Runnable:
     global _follow_up_agent_chain
     if _follow_up_agent_chain is None:
         logging.info("Building SAMPLE agent chain for follow-up questions...")
-        
-        PROMPT_TEMPLATE = """System: You are an expert clinical diagnostician.
-The patient has provided information about their chief complaint. Now, use the SAMPLE framework (Symptoms, Allergies, Medications, Past medical history, Last meal/Events) to gather background medical history.
 
-PATIENT CHIEF COMPLAINT: {chief_complaint}
-PATIENT'S ANSWERS ABOUT SYMPTOMS: {initial_answers}
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", (
+                "You are an expert clinical triage nurse conducting a structured medical intake.\n"
+                "Using the SAMPLE framework (Symptoms, Allergies, Medications, Past medical history, Last meal/Events), "
+                "generate exactly 5 follow-up questions focused on the patient's deep medical background: "
+                "past conditions, surgeries, family history, active medications, and allergies.\n"
+                "Output only the numbered list of questions. Do not add pleasantries, explanations, or preamble.\n"
+                "{language_instruction}"
+            )),
+            ("human", (
+                "The patient's chief complaint and symptom answers are delimited below.\n"
+                "<chief_complaint>{chief_complaint}</chief_complaint>\n"
+                "<symptom_answers>{initial_answers}</symptom_answers>\n"
+                "Generate 5 SAMPLE questions about their medical history."
+            )),
+        ])
 
-QUESTION: Generate a numbered list of exactly 5 essential follow-up questions focused ONLY on their deep medical history (Past conditions, surgeries, family history, active medications, allergies). 
-Act as a triage nurse asking the patient directly. 
-Do not add any conversational text or pleasantries. {language_instruction}"""
-
-        prompt = ChatPromptTemplate.from_template(PROMPT_TEMPLATE)
-        
         _follow_up_agent_chain = (
             RunnablePassthrough.assign(
                 language_instruction=lambda x: get_language_instructions(x["lang"])["follow_up_q_instruction"],
-            ) 
-            | prompt 
-            | get_llm() 
+            )
+            | prompt
+            | get_llm()
             | StrOutputParser()
         )
     return _follow_up_agent_chain
@@ -96,25 +104,24 @@ def get_structuring_chain() -> Runnable:
     global _structuring_chain
     if _structuring_chain is None:
         logging.info("Building structuring chain for summarization...")
-        SUMMARY_PROMPT_TEMPLATE = """System: You are an expert medical assistant specializing in patient history summarization.
-Your task is to synthesize the provided chief complaint and the patient's answers into a structured JSON object. Use clear, simple language. If a piece of information is not provided in the answers, use "{not_mentioned}".
 
-CONVERSATION:
-- Chief Complaint: {chief_complaint}
-- Answers about Symptoms: {initial_answers}
-- Answers about Medical History: {follow_up_answers}
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", (
+                "You are an expert medical assistant specializing in patient history summarization.\n"
+                "Synthesize the patient's inputs into a structured JSON object using clear, simple language.\n"
+                "If a piece of information was not provided, use \"{not_mentioned}\" as the value.\n"
+                "{language_instruction}\n"
+                "You MUST output ONLY the raw, valid JSON object with EXACTLY these keys: "
+                "onset, character, associated_symptoms, past_medical_history, family_history, medications."
+            )),
+            ("human", (
+                "Summarize the following patient conversation into the required JSON format.\n"
+                "<chief_complaint>{chief_complaint}</chief_complaint>\n"
+                "<symptom_answers>{initial_answers}</symptom_answers>\n"
+                "<history_answers>{follow_up_answers}</history_answers>"
+            )),
+        ])
 
-Based on the conversation above, extract the relevant information and format it into a JSON object with EXACTLY the following keys. {language_instruction}
-"onset": "When did the main symptom begin?", 
-"character": "How would the patient describe the symptom (e.g., sharp, dull, constant)?", 
-"associated_symptoms": "What other symptoms are occurring alongside the main one?", 
-"past_medical_history": "What relevant past illnesses, conditions, or surgeries were mentioned?", 
-"family_history": "What relevant family medical conditions were mentioned?", 
-"medications": "What current medications and allergies were mentioned?"
-
-You MUST output ONLY the raw, valid JSON object and nothing else."""
-        
-        prompt = ChatPromptTemplate.from_template(SUMMARY_PROMPT_TEMPLATE)
         _structuring_chain = prompt | get_llm() | JsonOutputParser()
     return _structuring_chain
 

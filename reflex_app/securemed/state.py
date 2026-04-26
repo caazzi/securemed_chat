@@ -1,16 +1,36 @@
 import reflex as rx
 import httpx
 import json
-import asyncio
 from typing import List, Dict
 
 import os
-# Detect production environment or fallback to local
+from .i18n import translations
+
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://securemed-api-540951606920.southamerica-east1.run.app/api")
-API_KEY = os.environ.get("SECUREMED_API_KEY", "dev_key_123")
+API_KEY = os.environ.get("SECUREMED_API_KEY", "")
 
 class State(rx.State):
     """The app state."""
+
+    @rx.var
+    def t(self) -> dict:
+        return translations.get(self.lang, translations["en"])
+
+    @property
+    def _t(self) -> dict:
+        return translations.get(self.lang, translations["en"])
+
+    @rx.var
+    def gender_opts(self) -> List[str]:
+        return self._t["gender_opts"]
+        
+    @rx.var
+    def lang_opts(self) -> List[str]:
+        return self._t["lang_opts"]
+
+    @rx.var
+    def step_names(self) -> List[str]:
+        return self._t.get("step_names", [])
     
     # --- Demographics & Init ---
     age: int = 35
@@ -38,6 +58,17 @@ class State(rx.State):
         except ValueError:
             pass
 
+    def detect_lang(self):
+        """Infer language from browser headers."""
+        try:
+            accept_lang = self.router.headers.get("accept-language", "")
+            if "pt" in accept_lang.lower().split(",")[0]:
+                self.lang = "pt"
+            else:
+                self.lang = "en"
+        except Exception:
+            self.lang = "en"
+
     def set_gender(self, val: str):
         self.gender = val
 
@@ -56,7 +87,7 @@ class State(rx.State):
     async def init_session(self):
         """Step 0 -> Step 1: Initialize Redis session."""
         if not self.chief_complaint:
-            yield rx.window_alert("Please enter a chief complaint.")
+            yield rx.window_alert(self._t["err_chief_complaint"])
             return
             
         self.loading = True
@@ -72,15 +103,19 @@ class State(rx.State):
                     timeout=10.0
                 )
                 if resp.status_code == 200:
-                    self.session_id = resp.json().get("session_id")
+                    session_id = resp.json().get("session_id")
+                    if not session_id:
+                        yield rx.window_alert(self._t["err_generic"] + "Invalid session response from server.")
+                        return
+                    self.session_id = session_id
                     self.step = 1
                     # Auto-trigger first questions
                     async for item in self.get_initial_questions():
                         yield item
                 else:
-                    yield rx.window_alert(f"Failed to init session: {resp.text}")
+                    yield rx.window_alert(f"{self._t['err_init']}{resp.text}")
             except Exception as e:
-                yield rx.window_alert(f"Error: {str(e)}")
+                yield rx.window_alert(f"{self._t['err_generic']}{str(e)}")
             finally:
                 self.loading = False
 
@@ -111,14 +146,14 @@ class State(rx.State):
                             self.initial_questions_text += chunk
                             yield
             except Exception as e:
-                yield rx.window_alert(f"Streaming Error: {str(e)}")
+                yield rx.window_alert(f"{self._t['err_stream']}{str(e)}")
             finally:
                 self.loading = False
 
     async def submit_initial_answers(self):
         """Step 1 -> Step 2: Push answers and trigger follow-up."""
         if not self.initial_answers:
-            yield rx.window_alert("Please answer the questions.")
+            yield rx.window_alert(self._t["err_initial_ans"])
             return
             
         self.step = 2
@@ -152,14 +187,14 @@ class State(rx.State):
                             self.follow_up_questions_text += chunk
                             yield
             except Exception as e:
-                yield rx.window_alert(f"Streaming Error: {str(e)}")
+                yield rx.window_alert(f"{self._t['err_stream']}{str(e)}")
             finally:
                 self.loading = False
 
     async def submit_follow_up_answers(self):
         """Step 2 -> Step 3: Finalize."""
         if not self.follow_up_answers:
-            yield rx.window_alert("Please answer the follow-up questions.")
+            yield rx.window_alert(self._t["err_followup_ans"])
             return
         self.step = 3
 
@@ -187,8 +222,8 @@ class State(rx.State):
                         filename="SecureMed_Report.pdf"
                     )
                 else:
-                    yield rx.window_alert(f"Download failed: {resp.text}")
+                    yield rx.window_alert(f"{self._t['err_download']}{resp.text}")
             except Exception as e:
-                yield rx.window_alert(f"Download Error: {str(e)}")
+                yield rx.window_alert(f"{self._t['err_download_gen']}{str(e)}")
             finally:
                 self.loading = False

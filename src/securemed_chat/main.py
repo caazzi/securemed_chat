@@ -1,10 +1,6 @@
-"""
-Main Application Entry Point.
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-This file configures and starts the FastAPI application. It creates the main
-FastAPI instance and includes the API router that defines all the
-application's endpoints.
-"""
 from fastapi import FastAPI
 from securemed_chat.api.endpoints import router as api_router
 

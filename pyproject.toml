@@ -1,0 +1,29 @@
+[project]
+name = "securemed-chat"
+version = "0.1.0"
+description = "SecureMed Chat - Privacy-First Medical Intake Assistant"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi==0.115.8",
+    "gunicorn==23.0.0",
+    "langchain-google-vertexai==2.1.2",
+    "langchain==0.3.27",
+    "pydantic==2.11.7",
+    "reportlab==4.4.10",
+    "uvicorn[standard]==0.34.0",
+    "google-cloud-aiplatform==1.117.0",
+    "python-dotenv==1.1.1",
+    "redis==5.0.3"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

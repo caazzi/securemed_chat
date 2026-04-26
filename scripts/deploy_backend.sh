@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- CONFIGURATION (UPDATE THESE) ---
-PROJECT_ID="securemed-chat"          # Your GCP Project ID
+PROJECT_ID="ambassist-1771888311"          # Your GCP Project ID
 REGION="southamerica-east1"          # Desired Region
 SERVICE_NAME="securemed-api"         # Service name for Cloud Run
 # ------------------------------------
@@ -21,6 +21,13 @@ gcloud config set project $PROJECT_ID
 # --source . : Builds and pushes the container automatically
 # --min-instances 0 : Essential for zero cost
 # --no-cpu-throttling : Optional but recommended for better latency
+# Require the API key to be set in the environment before deploying
+if [ -z "$SECUREMED_API_KEY" ]; then
+    echo "❌ Error: SECUREMED_API_KEY environment variable is not set."
+    echo "   Set it before running this script: export SECUREMED_API_KEY=<your-secret-key>"
+    exit 1
+fi
+
 echo "🐳 Building and deploying container to Cloud Run..."
 gcloud run deploy $SERVICE_NAME \
     --source . \
@@ -28,7 +35,7 @@ gcloud run deploy $SERVICE_NAME \
     --region $REGION \
     --min-instances 0 \
     --allow-unauthenticated \
-    --set-env-vars="SECUREMED_API_KEY=dev_key_123"
+    --set-env-vars="SECUREMED_API_KEY=$SECUREMED_API_KEY"
 
 echo "✅ Backend Deployment Finished!"
 echo "🔗 Your API URL should be visible above."

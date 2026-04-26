@@ -109,11 +109,13 @@ async def get_follow_up_questions_streamed(
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
+    if "chief_complaint" not in session_data:
+        raise HTTPException(status_code=422, detail="Session is missing chief complaint. Complete the previous step first.")
 
     try:
         sanitized_answers = _sanitize_input(request.initial_answers)
         await update_session(request.session_id, {"initial_answers": sanitized_answers})
-        
+
         complaint_context = _create_patient_context(session_data["age"], session_data["gender"], session_data["chief_complaint"])
 
         async def event_generator():
@@ -134,10 +136,13 @@ async def summarize_and_generate_pdf_endpoint(
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
+    missing = [k for k in ("chief_complaint", "initial_answers") if k not in session_data]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Session is missing required fields: {missing}. Complete all prior steps first.")
 
     try:
         sanitized_follow_up = _sanitize_input(request.follow_up_answers)
-        
+
         structured_data = await summarize_and_structure_anamnesis(
             chief_complaint=session_data["chief_complaint"],
             initial_answers=session_data["initial_answers"],
