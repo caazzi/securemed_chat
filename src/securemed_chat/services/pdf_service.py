@@ -160,8 +160,12 @@ def generate_pdf_report_in_memory(form: dict, qa_pairs: list, lang: str = 'en') 
     c.showPage()
     c.save()
 
+    base_name = labels['filename'].replace('.pdf', '')
+    timestamp = datetime.now().strftime('_%y%m%d%H%M')
+    final_filename = f"{base_name}{timestamp}.pdf"
+
     pdf_bytes = buffer.getvalue()
     buffer.close()
     logging.info(f"PDF report generated in-memory (lang={lang}, size={len(pdf_bytes)} bytes).")
-    return pdf_bytes, labels['filename']
+    return pdf_bytes, final_filename
 

@@ -301,13 +301,6 @@ def step_5_summary() -> rx.Component:
                 size="3", width="100%", min_height="44px"
             ),
             rx.button(
-                State.t["print_btn"],
-                on_click=rx.call_script("window.print()"),
-                color_scheme="orange",
-                variant="outline",
-                size="3", width="100%", min_height="44px"
-            ),
-            rx.button(
                 State.t["start_new"], 
                 on_click=rx.redirect("/"),
                 color_scheme="gray",

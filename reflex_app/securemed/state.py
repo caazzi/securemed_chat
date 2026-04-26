@@ -2,8 +2,8 @@ import reflex as rx
 import httpx
 import json
 from typing import List, Dict
-
 import os
+from datetime import datetime
 from .i18n import translations
 
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://securemed-api-540951606920.southamerica-east1.run.app/api")
@@ -183,7 +183,7 @@ class State(rx.State):
                         yield rx.window_alert(self._t["err_generic"] + "Invalid session response from server.")
                         return
                     self.session_id = session_id
-                    self.step = 5
+                    self.step = 4
                     self.current_answers = []
                     self.questions = []
                     # Auto-trigger interview questions
@@ -252,7 +252,7 @@ class State(rx.State):
             f"Chief Complaint: {self.chief_complaint}\n\n"
             f"--- Questions & Answers ---\n{qs_ans_text}"
         )
-        self.step = 6
+        self.step = 5
 
     async def download_report(self):
         """Step 6: Securely fetch PDF with API Key and trigger download."""
@@ -278,7 +278,7 @@ class State(rx.State):
                 if resp.status_code == 200:
                     yield rx.download(
                         data=resp.content,
-                        filename="SecureMed_Report.pdf"
+                        filename=f"SecureMed_Report{datetime.now().strftime('_%y%m%d%H%M')}.pdf"
                     )
                 else:
                     yield rx.window_alert(f"{self._t['err_download']}{resp.text}")
