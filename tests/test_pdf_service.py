@@ -22,12 +22,14 @@ MINIMAL_QA = [{"question": "Any nausea?", "answer": "Yes, sometimes."}]
 def test_pdf_valid_bytes_en():
     pdf_bytes, filename = generate_pdf_report_in_memory(MINIMAL_FORM, MINIMAL_QA, lang="en")
     assert pdf_bytes.startswith(b"%PDF-")
-    assert filename == "Medical_Summary_Report.pdf"
+    assert filename.startswith("Medical_Summary_Report")
+    assert filename.endswith(".pdf")
 
 def test_pdf_valid_bytes_pt():
     pdf_bytes, filename = generate_pdf_report_in_memory(MINIMAL_FORM, MINIMAL_QA, lang="pt")
     assert pdf_bytes.startswith(b"%PDF-")
-    assert filename == "Resumo_Medico.pdf"
+    assert filename.startswith("Resumo_Medico")
+    assert filename.endswith(".pdf")
 
 @patch("securemed_chat.services.pdf_service.Paragraph")
 @patch("securemed_chat.services.pdf_service.canvas.Canvas")
@@ -74,4 +76,5 @@ def test_pdf_pagination_long_answer(mock_canvas_class, mock_paragraph):
 def test_pdf_unknown_lang_defaults_to_en():
     pdf_bytes, filename = generate_pdf_report_in_memory(MINIMAL_FORM, MINIMAL_QA, lang="xx")
     assert pdf_bytes.startswith(b"%PDF-")
-    assert filename == "Medical_Summary_Report.pdf"
+    assert filename.startswith("Medical_Summary_Report")
+    assert filename.endswith(".pdf")

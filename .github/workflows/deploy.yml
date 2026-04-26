@@ -7,7 +7,7 @@ on:
 
 env:
   PROJECT_ID: securemed-chat-494521
-  REGION: us-central1
+  REGION: southamerica-east1
   SERVICE_NAME: securemed-api
   AR_REPO: securemed-repo
   WIF_PROVIDER: projects/811607528687/locations/global/workloadIdentityPools/github-pool/providers/github-provider
@@ -60,4 +60,4 @@ jobs:
             --max-instances=10
             --concurrency=80
             --cpu=1
-            --memory=512Mi
+            --memory=2Gi

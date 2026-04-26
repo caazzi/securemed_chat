@@ -1,36 +1,58 @@
-#Git version control files
+# --- Build Context Optimization ---
+# This file ensures only the necessary FastAPI code is sent to Docker/GCP
+
+# Version Control & Metadata
 .git/
 .gitignore
+.github/
+.agentignore
+.python-version
+.claude/
+.gemini/
 
-#Docker specific files
+# Docker Tooling
 Dockerfile
 .dockerignore
 
-#Python virtual environments
+# Virtual Environments & dependencies
 .env
+.envrc
+.direnv/
 .venv/
 venv/
+env/
+node_modules/
 
-#Python cache and compiled files
-pycache/
+# Python Cache & Build Artifacts
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+build/
+dist/
+*.egg-info/
 
-#IDE and local development configuration
-.vscode/
-.direnv/
+# Frontend Code (deployed separately)
+reflex_app/
+
+# Miscellaneous & Temporary
 .gradio/
-
-#Jupyter Notebooks and generated reports
-*.ipynb
 reports/
 generated_reports/
-
-#Data, scripts, and old versions not needed for the running API
 knowledge_base/
 vector_store/
 scripts/
 old_versions/
 gradio/
+*.ipynb
+.DS_Store
+Thumbs.db
 
-#Documentation and local configuration
-README.md
+# Documentation
+docs/
+# README.md is NOT ignored because pyproject.toml requires it for metadata

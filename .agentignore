@@ -5,12 +5,14 @@ __pycache__/
 .git/
 .pytest_cache/
 .venv/
+.claude/
 
 # Large binary / data files
 knowledge_base/
 vector_store/
 *.pkl
 *.pdf
+uv.lock
 
 # Jupyter notebooks (large, not production code)
 *.ipynb
@@ -23,4 +25,4 @@ Thumbs.db
 # Reflex App tooling and dependencies
 .web/
 .states/
-uv.lock
+.python-version

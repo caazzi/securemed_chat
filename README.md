@@ -76,18 +76,30 @@ Foundation models already contain the necessary medical knowledge. Structured pr
 
 ## Local Setup
 
+The project uses `uv` for lightning-fast dependency management.
+
+### Prerequisites
+- [uv](https://github.com/astral-sh/uv) installed
+- Docker (for Redis)
+
+### Running the App
+1. **Start infrastructure** (Redis):
+   ```bash
+   docker compose up -d redis
+   ```
+
+2. **Start the Backend** (FastAPI):
+   ```bash
+   uv run uvicorn securemed_chat.main:app --reload
+   ```
+
+3. **Start the Frontend** (Reflex):
+   ```bash
+   cd reflex_app && uv run reflex run
+   ```
+
+Requires a `.env` file in the root with:
 ```bash
-docker compose up --build
-```
-
-Starts Redis + FastAPI backend. Then run the frontend:
-
-```bash
-cd reflex_app && reflex run
-```
-
-Requires a `.env` file with:
-```
 SECUREMED_API_KEY=your_key
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```

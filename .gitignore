@@ -2,6 +2,8 @@
 .env
 .envrc
 *credentials*.json
+.python-version
+.claude/
 
 
 # Python Virtual Environment
@@ -87,6 +89,7 @@ reports/
 # AI Agent tooling
 .gemini/
 .agentignore
+.claude/
 
 # Reflex App Tooling
 .web/
