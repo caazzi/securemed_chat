@@ -48,17 +48,17 @@ jobs:
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ env.SERVICE_NAME }}
+          service: securemed-chat
           region: ${{ env.REGION }}
           image: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
           env_vars: |
-            API_BASE_URL=https://${{ env.SERVICE_NAME }}-XXXXX.a.run.app/api
+            API_BASE_URL=/api
           secrets: |
             REDIS_URL=REDIS_URL:latest
             SECUREMED_API_KEY=SECUREMED_API_KEY:latest
           flags: |
             --allow-unauthenticated
-            --max-instances=10
+            --max-instances=5
             --concurrency=80
             --cpu=1
-            --memory=2Gi
+            --memory=1Gi

@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 from .i18n import translations
 
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://securemed-api-540951606920.southamerica-east1.run.app/api")
+API_BASE_URL = os.environ.get("API_BASE_URL", "/api")
 API_KEY = os.environ.get("SECUREMED_API_KEY", "")
 
 class State(rx.State):

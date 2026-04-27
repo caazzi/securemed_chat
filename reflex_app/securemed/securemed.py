@@ -1,5 +1,10 @@
 import reflex as rx
 from .state import State
+try:
+    from securemed_chat.api.endpoints import router as api_router
+except ImportError:
+    api_router = None
+
 
 def header() -> rx.Component:
     return rx.hstack(
@@ -400,4 +405,8 @@ app = rx.App(
         gray_color="slate"
     )
 )
+
+if api_router:
+    app.api.include_router(api_router, prefix="/api")
+
 app.add_page(index, on_load=State.detect_lang)

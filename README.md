@@ -24,19 +24,19 @@ SecureMed bridges that gap with a guided AI interview that generates a structure
 ## Architecture
 
 ```
-┌─────────────────┐
-│  Reflex UI      │ ──────► Glassmorphism Frontend (Port 3000)
-└────────┬────────┘
-         │ WebSocket / HTTPS
-         ▼
-┌─────────────────┐
-│  FastAPI Backend│ ──────► GCP Cloud Run (Scale to Zero)
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Redis Session  │ ──────► Ephemeral Context (30-min TTL, then destroyed)
-└─────────────────┘
+┌──────────────────────────────────────────┐
+│             SecureMed App                │
+│       (Unified Cloud Run Service)        │
+├────────────────────┬─────────────────────┤
+│     Reflex UI      │   FastAPI Backend   │
+│  (React/Next.js)   │  (Interview/PDF)    │
+└─────────┬──────────┴──────────┬──────────┘
+          │                     │
+          ▼                     ▼
+┌───────────────────┐ ┌───────────────────┐
+│   Redis Session   │ │    Vertex AI      │
+│ (30-min Context)  │ │ (Clinical LLM)    │
+└───────────────────┘ └───────────────────┘
 ```
 
 ---
@@ -45,11 +45,11 @@ SecureMed bridges that gap with a guided AI interview that generates a structure
 
 No health data is ever written to disk. Every design decision flows from this constraint:
 
-- **No database** — session state lives in Redis with a 30-minute TTL
-- **No user accounts** — complete anonymity, no registration required
-- **In-memory PDF generation** — reports are built in RAM and streamed directly to the browser
-- **PII-free logs** — structured logging tracks operations, never patient content
-- **No model training** — API calls use contracts that exclude session data from training
+- **No database** — session state lives in Redis with a 30-minute TTL.
+- **No user accounts** — complete anonymity, no registration required.
+- **In-memory PDF generation** — reports are built in RAM and streamed directly to the browser.
+- **Local API Routing** — the UI communicates with the API on the same origin (no cross-service exposure).
+- **No model training** — API calls use contracts that exclude session data from training.
 
 ---
 
@@ -57,12 +57,12 @@ No health data is ever written to disk. Every design decision flows from this co
 
 | Layer | Technology |
 |---|---|
-| Backend | FastAPI + Gunicorn/Uvicorn |
+| Core | Reflex (Unified Frontend & API Host) |
+| Backend | FastAPI (Integrated into Reflex backend) |
 | Session | Redis (ephemeral, 30-min TTL) |
-| Frontend | Reflex (compiles to React/Next.js) |
 | AI | Vertex AI (Gemini) |
-| Deployment | GCP Cloud Run (serverless, scale-to-zero) |
-| CI/CD | GitHub Actions — 100% test coverage (unit, integration, security) |
+| Deployment | GCP Cloud Run (1.0 CPU, 1Gi RAM, Scale-to-Zero) |
+| CI/CD | GitHub Actions (Consolidated Mono-Service build) |
 
 ---
 
@@ -78,24 +78,16 @@ Foundation models already contain the necessary medical knowledge. Structured pr
 
 The project uses `uv` for lightning-fast dependency management.
 
-### Prerequisites
-- [uv](https://github.com/astral-sh/uv) installed
-- Docker (for Redis)
-
 ### Running the App
 1. **Start infrastructure** (Redis):
    ```bash
    docker compose up -d redis
    ```
 
-2. **Start the Backend** (FastAPI):
+2. **Start the Unified App**:
    ```bash
-   uv run uvicorn securemed_chat.main:app --reload
-   ```
-
-3. **Start the Frontend** (Reflex):
-   ```bash
-   cd reflex_app && uv run reflex run
+   # Both UI and API will run together
+   uv run reflex run
    ```
 
 Requires a `.env` file in the root with:
@@ -108,14 +100,18 @@ GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 
 ## Deployment (GCP Cloud Run)
 
+The app is deployed as a single consolidated container:
+
 ```bash
-gcloud run deploy securemed-chat-service \
+gcloud run deploy securemed-chat \
   --source . \
-  --project=securemed-chat \
+  --project=securemed-chat-494521 \
   --region=southamerica-east1 \
-  --memory=2Gi \
+  --memory=1Gi \
+  --cpu=1 \
   --min-instances=0 \
-  --set-secrets=SECUREMED_API_KEY=SECUREMED_API_KEY:latest
+  --max-instances=5 \
+  --set-secrets=SECUREMED_API_KEY=SECUREMED_API_KEY:latest,REDIS_URL=REDIS_URL:latest
 ```
 
 ---
