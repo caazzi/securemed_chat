@@ -1,9 +1,10 @@
 #!/bin/bash
 
 # --- CONFIGURATION (UPDATE THESE) ---
-PROJECT_ID="ambassist-1771888311"          # Your GCP Project ID
-REGION="southamerica-east1"          # Desired Region
-SERVICE_NAME="securemed-api"         # Service name for Cloud Run
+# --- CONFIGURATION (OVERRIDABLE VIA ENV) ---
+PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-"ambassist-1771888311"} 
+REGION=${GOOGLE_CLOUD_REGION:-"southamerica-east1"}
+SERVICE_NAME=${SERVICE_NAME:-"securemed-api"}
 # ------------------------------------
 
 echo "🚀 Starting Zero-Cost Backend Deployment for SecureMed..."
@@ -34,6 +35,8 @@ gcloud run deploy $SERVICE_NAME \
     --platform managed \
     --region $REGION \
     --min-instances 0 \
+    --max-instances 5 \
+    --concurrency 50 \
     --allow-unauthenticated \
     --set-env-vars="SECUREMED_API_KEY=$SECUREMED_API_KEY"
 

@@ -20,7 +20,15 @@ from securemed_chat.services.agent_service import (
     get_interview_chain,
 )
 from securemed_chat.services.pdf_service import generate_pdf_report_in_memory
-from securemed_chat.services.session_service import create_session, get_session, update_session
+from securemed_chat.services.session_service import (
+    create_session,
+    get_session,
+    update_session,
+    check_rate_limit,
+    check_session_quota,
+    increment_session_quota
+)
+from fastapi import Request
 
 # --- Security & Helper Functions ---
 API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
@@ -75,8 +83,18 @@ class GeneratePdfRequest(BaseModel):
 router = APIRouter(dependencies=[Depends(get_api_key)])
 
 @router.post("/session/init")
-async def init_session(request: SessionInitRequest):
+async def init_session(request: SessionInitRequest, fastapi_req: Request):
     """Initializes a new ephemeral Redis session with full form data."""
+    ip = fastapi_req.client.host
+    
+    # 1. Check daily quota (max 5 sessions per IP)
+    if not await check_session_quota(ip, limit=5):
+        raise HTTPException(status_code=429, detail="Daily session limit reached for this IP.")
+        
+    # 2. Check rate limit for session creation (max 2 per minute)
+    if not await check_rate_limit(f"init:{ip}", limit=2, window=60):
+        raise HTTPException(status_code=429, detail="Too many session requests. Please wait.")
+
     session_id = await create_session({
         "age_bracket": request.age_bracket,
         "sex": request.sex,
@@ -92,14 +110,24 @@ async def init_session(request: SessionInitRequest):
         "smoking": request.smoking,
         "alcohol": request.alcohol,
     })
+    
+    # Increment quota after successful creation
+    await increment_session_quota(ip)
+    
     return {"session_id": session_id}
 
 @router.post("/initial-questions-stream")
 async def get_initial_questions_streamed(
     request: InitialRequest,
+    fastapi_req: Request,
     chain: Runnable = Depends(get_interview_chain)
 ):
     """ Streams interview questions based on chief complaint. """
+    ip = fastapi_req.client.host
+    # Max 5 calls per minute for streaming
+    if not await check_rate_limit(f"stream:{ip}", limit=5, window=60):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait a moment.")
+
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
@@ -121,9 +149,15 @@ async def get_initial_questions_streamed(
 @router.post("/interview-questions-stream")
 async def get_interview_questions_streamed(
     request: InterviewRequest,
+    fastapi_req: Request,
     chain: Runnable = Depends(get_interview_chain)
 ):
     """Streams targeted interview questions based on full form context. Single LLM call."""
+    ip = fastapi_req.client.host
+    # Max 5 calls per minute for streaming
+    if not await check_rate_limit(f"stream:{ip}", limit=5, window=60):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please wait a moment.")
+
     session_data = await get_session(request.session_id)
     if not session_data:
         raise HTTPException(status_code=404, detail="Session expired or invalid")

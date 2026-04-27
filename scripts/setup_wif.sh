@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-PROJECT_ID="securemed-chat-494521"
-REPO="caazzi/securemed_chat" # Need to verify exact github repo name, assume this for now. Wait, I should parameterize it.
+PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-"securemed-chat-494521"}
+REPO=${GITHUB_REPO:-"caazzi/securemed_chat"}
 SERVICE_ACCOUNT="github-deploy-sa"
 
 echo "Creating Service Account..."
