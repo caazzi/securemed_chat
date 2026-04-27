@@ -7,3 +7,11 @@ os.environ["SECUREMED_API_KEY"] = "ci_test_key_123"
 os.environ["GOOGLE_CLOUD_PROJECT"] = "ci_test_project"
 os.environ["GOOGLE_CLOUD_REGION"] = "us-east1"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+
+@pytest.fixture(autouse=True)
+def reset_redis_pool():
+    """Resets the global Redis connection pool in session_service to avoid event loop conflicts."""
+    from securemed_chat.services import session_service
+    session_service._redis_pool = None
+    yield
+    session_service._redis_pool = None

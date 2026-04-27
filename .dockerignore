@@ -42,8 +42,6 @@ build/
 dist/
 *.egg-info/
 
-# Frontend Code (deployed separately)
-reflex_app/
 
 # Miscellaneous & Temporary
 .gradio/

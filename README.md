@@ -48,6 +48,7 @@ No health data is ever written to disk. Every design decision flows from this co
 - **No database** — session state lives in Redis with a 30-minute TTL.
 - **No user accounts** — complete anonymity, no registration required.
 - **In-memory PDF generation** — reports are built in RAM and streamed directly to the browser.
+- **High-Performance State** — uses Redis Hashes for granular, partial updates, minimizing I/O and latency.
 - **Local API Routing** — the UI communicates with the API on the same origin (no cross-service exposure).
 - **No model training** — API calls use contracts that exclude session data from training.
 
@@ -59,8 +60,8 @@ No health data is ever written to disk. Every design decision flows from this co
 |---|---|
 | Core | Reflex (Unified Frontend & API Host) |
 | Backend | FastAPI (Integrated into Reflex backend) |
-| Session | Redis (ephemeral, 30-min TTL) |
-| AI | Vertex AI (Gemini) |
+| Session | Redis (Hashes, ephemeral, 30-min TTL) |
+| AI | Vertex AI (Gemini-Flash) |
 | Deployment | GCP Cloud Run (1.0 CPU, 1Gi RAM, Scale-to-Zero) |
 | CI/CD | GitHub Actions (Consolidated Mono-Service build) |
 
@@ -94,6 +95,17 @@ Requires a `.env` file in the root with:
 ```bash
 SECUREMED_API_KEY=your_key
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+```
+
+### Running Tests
+The project includes a comprehensive suite of 34 tests covering services, security, and integration.
+
+```bash
+# Sync test dependencies
+uv sync --extra test
+
+# Run full suite
+uv run python -m pytest tests/
 ```
 
 ---

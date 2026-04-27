@@ -39,7 +39,7 @@ COPY --from=builder /app /app
 # Set up environment
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/app/src:$PYTHONPATH"
+    PYTHONPATH="/app/src"
 
 # Expose ports (Reflex default is 8000 for backend, 3000 for frontend, 
 # but in prod it's consolidated or served differently)

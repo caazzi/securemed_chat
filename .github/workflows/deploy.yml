@@ -9,7 +9,7 @@ on:
 env:
   PROJECT_ID: securemed-chat-494521
   REGION: southamerica-east1
-  SERVICE_NAME: securemed-api
+  SERVICE_NAME: securemed-chat
   AR_REPO: securemed-repo
   WIF_PROVIDER: projects/811607528687/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   SERVICE_ACCOUNT: github-deploy-sa@securemed-chat-494521.iam.gserviceaccount.com

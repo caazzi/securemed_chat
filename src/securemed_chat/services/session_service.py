@@ -21,15 +21,21 @@ def get_redis() -> redis.Redis:
     return _redis_pool
 
 async def create_session(data: Dict[str, Any]) -> str:
-    """Creates a new session and returns the session ID."""
+    """Creates a new session and returns the session ID using Redis Hashes."""
     session_id = str(uuid.uuid4())
     client = get_redis()
-    await client.setex(
-        f"session:{session_id}",
-        SESSION_TTL,
-        json.dumps(data)
-    )
-    logging.info(f"Created new session {session_id}")
+    
+    # Serialize complex types (lists/dicts) to JSON strings within the hash fields
+    hash_data = {
+        k: (json.dumps(v) if isinstance(v, (list, dict)) else v)
+        for k, v in data.items()
+    }
+    
+    key = f"session:{session_id}"
+    await client.hset(key, mapping=hash_data)
+    await client.expire(key, SESSION_TTL)
+    
+    logging.info(f"Created new session {session_id} as Hash")
     return session_id
 
 async def get_session(session_id: str) -> Dict[str, Any]:
@@ -38,27 +44,45 @@ async def get_session(session_id: str) -> Dict[str, Any]:
         return {}
     
     client = get_redis()
-    data = await client.get(f"session:{session_id}")
-    if data:
+    key = f"session:{session_id}"
+    raw_data = await client.hgetall(key)
+    
+    if raw_data:
         # Refresh TTL on access
-        await client.expire(f"session:{session_id}", SESSION_TTL)
-        return json.loads(data)
+        await client.expire(key, SESSION_TTL)
+        
+        # Deserialize complex types
+        result = {}
+        for k, v in raw_data.items():
+            try:
+                # Attempt to parse as JSON; if it fails or is not a list/dict, keep as string
+                parsed = json.loads(v)
+                if isinstance(parsed, (list, dict)):
+                    result[k] = parsed
+                else:
+                    result[k] = v
+            except (json.JSONDecodeError, TypeError):
+                result[k] = v
+        return result
     return {}
 
 async def update_session(session_id: str, new_data: Dict[str, Any]) -> None:
-    """Merges new data into an existing session."""
-    if not session_id:
+    """Updates specific fields in a session without a full re-fetch (Redundant GET removed)."""
+    if not session_id or not new_data:
         return
         
     client = get_redis()
-    current_data = await get_session(session_id)
-    current_data.update(new_data)
+    key = f"session:{session_id}"
     
-    await client.setex(
-        f"session:{session_id}",
-        SESSION_TTL,
-        json.dumps(current_data)
-    )
+    # Serialize complex types for partial update
+    hash_data = {
+        k: (json.dumps(v) if isinstance(v, (list, dict)) else v)
+        for k, v in new_data.items()
+    }
+    
+    await client.hset(key, mapping=hash_data)
+    await client.expire(key, SESSION_TTL)
+    logging.debug(f"Updated session {session_id} fields: {list(new_data.keys())}")
 
 async def check_rate_limit(ip: str, limit: int = 10, window: int = 60) -> bool:
     """

@@ -10,4 +10,4 @@ SECUREMED_API_KEY = os.environ.get("SECUREMED_API_KEY")
 if not SECUREMED_API_KEY:
     raise ValueError("FATAL: SECUREMED_API_KEY environment variable not set. Aborting startup.")
 
-LLM_MODEL = "gemini-2.5-flash-lite"
+LLM_MODEL = "gemini-flash-latest"
