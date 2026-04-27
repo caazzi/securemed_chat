@@ -4,6 +4,10 @@
 *credentials*.json
 .python-version
 .claude/
+.gemini/
+*.log
+*.tmp
+*.bak
 
 
 # Python Virtual Environment
@@ -35,6 +39,7 @@ Thumbs.db
 .Python
 build/
 dist/
+node_modules/
 downloads/
 eggs/
 .eggs/

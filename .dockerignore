@@ -9,6 +9,11 @@
 .python-version
 .claude/
 .gemini/
+*.json
+!pyproject.toml
+!package.json
+*.log
+*.pdf
 
 # Docker Tooling
 Dockerfile
