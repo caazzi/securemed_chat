@@ -413,3 +413,11 @@ if api_router:
     app._api.mount("/api", custom_api)
 
 app.add_page(index, on_load=State.detect_lang)
+
+import os
+static_dir = os.path.join(os.getcwd(), ".web", "_static")
+if os.path.exists(static_dir):
+    from fastapi.staticfiles import StaticFiles
+    app._api.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
+api = app._api
