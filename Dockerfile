@@ -22,7 +22,7 @@ COPY . .
 
 # Build Reflex frontend
 WORKDIR /app/reflex_app
-RUN uv run reflex export --frontend-only --no-zip
+RUN BUILD_MODE=true uv run reflex export --frontend-only --no-zip
 
 # --- Stage 2: Final Production Image ---
 FROM python:3.11-slim-bookworm

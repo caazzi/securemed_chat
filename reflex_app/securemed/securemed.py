@@ -407,6 +407,9 @@ app = rx.App(
 )
 
 if api_router:
-    app.api.include_router(api_router, prefix="/api")
+    from fastapi import FastAPI
+    custom_api = FastAPI()
+    custom_api.include_router(api_router)
+    app._api.mount("/api", custom_api)
 
 app.add_page(index, on_load=State.detect_lang)
