@@ -45,7 +45,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # but in prod it's consolidated or served differently)
 # We will run reflex in prod mode which binds to 8080 (Cloud Run default)
 EXPOSE 8080
+# Set up non-root user for security
+RUN groupadd -r securemed && useradd -r -g securemed -m securemed && \
+    chown -R securemed:securemed /app
 
+USER securemed
 WORKDIR /app/reflex_app
+
 # Run production backend using Gunicorn with Uvicorn workers and bind to the PORT env variable
-CMD ["sh", "-c", "uv run gunicorn securemed.securemed:app --bind 0.0.0.0:${PORT:-8080} --worker-class uvicorn.workers.UvicornWorker --workers 1 --threads 8"]
+# 'exec' ensures signals (like SIGTERM for scale-down) are correctly sent to gunicorn
+CMD ["sh", "-c", "exec uv run gunicorn securemed.securemed:app --bind 0.0.0.0:${PORT:-8080} --worker-class uvicorn.workers.UvicornWorker --workers 1 --threads 8"]
