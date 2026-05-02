@@ -47,5 +47,5 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 EXPOSE 8080
 
 WORKDIR /app/reflex_app
-# Run reflex in production mode on port 8080
-CMD ["uv", "run", "reflex", "run", "--env", "prod", "--backend-port", "8080", "--frontend-port", "8080"]
+# Run production backend using Gunicorn with Uvicorn workers and bind to the PORT env variable
+CMD ["sh", "-c", "uv run gunicorn securemed.securemed:app --bind 0.0.0.0:${PORT:-8080} --worker-class uvicorn.workers.UvicornWorker --workers 1 --threads 8"]
