@@ -87,8 +87,8 @@ async def init_session(request: SessionInitRequest, fastapi_req: Request):
     """Initializes a new ephemeral Redis session with full form data."""
     ip = fastapi_req.client.host
     
-    # 1. Check daily quota (max 5 sessions per IP)
-    if not await check_session_quota(ip, limit=5):
+    # 1. Check daily quota (max 20 sessions per IP)
+    if not await check_session_quota(ip, limit=20):
         raise HTTPException(status_code=429, detail="Daily session limit reached for this IP.")
         
     # 2. Check rate limit for session creation (max 2 per minute)

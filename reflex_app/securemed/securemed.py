@@ -1,5 +1,5 @@
 import reflex as rx
-from .state import State
+from .state import State, AdminState
 try:
     from securemed_chat.api.endpoints import router as api_router
 except ImportError:
@@ -10,6 +10,15 @@ def header() -> rx.Component:
     return rx.hstack(
         rx.heading(State.t["title"], size={"initial": "6", "sm": "7"}, color_scheme="cyan"),
         rx.spacer(),
+        rx.select(
+            ["en", "pt"],
+            on_change=State.set_lang,
+            value=State.lang,
+            width="80px",
+            min_height="44px",
+            variant="ghost",
+            aria_label="Select language"
+        ),
         rx.color_mode.button(),
         width="100%",
         padding={"initial": "1em", "sm": "1.5em"},
@@ -260,23 +269,63 @@ def step_4_interview_qs() -> rx.Component:
             rx.divider(),
             width="100%", spacing="2", animation="fadeInUp 0.4s ease-out 0s both"
         ),
-        rx.box(
-            rx.cond(
-                State.questions.length() > 0,
-                rx.vstack(
-                    rx.foreach(State.questions, lambda q, i: question_item(q, i)),
-                    width="100%"
+        rx.cond(
+            State.is_emergency,
+            rx.vstack(
+                rx.hstack(
+                    rx.icon("alert-triangle", size=28, color="red"),
+                    rx.heading(
+                        rx.cond(State.lang == "pt", "AVISO DE EMERGÊNCIA", "EMERGENCY WARNING"),
+                        size="5",
+                        color="red",
+                    ),
+                    spacing="2",
+                    align_items="center",
                 ),
-                rx.center(rx.spinner(), width="100%", padding="2em")
+                rx.text(
+                    State._qs_buffer,
+                    color="red",
+                    font_size="lg",
+                    font_weight="bold",
+                    text_align="center",
+                ),
+                rx.button(
+                    rx.cond(State.lang == "pt", "Voltar para o Início", "Back to Start"),
+                    on_click=rx.redirect("/"),
+                    color_scheme="gray",
+                    width="100%",
+                    min_height="44px",
+                ),
+                width="100%",
+                spacing="4",
+                padding="2em",
+                border="2px solid red",
+                border_radius="15px",
+                background="rgba(255, 0, 0, 0.15)",
+                animation="fadeInUp 0.4s ease-out 0.1s both",
             ),
-            width="100%", animation="fadeInUp 0.4s ease-out 0.1s both"
-        ),
-        rx.button(
-            State.t["submit_continue"], 
-            on_click=State.submit_answers, 
-            loading=State.loading,
-            color_scheme="cyan", size="3", width="100%", min_height="44px",
-            animation="fadeInUp 0.4s ease-out 0.2s both"
+            rx.vstack(
+                rx.box(
+                    rx.cond(
+                        State.questions.length() > 0,
+                        rx.vstack(
+                            rx.foreach(State.questions, lambda q, i: question_item(q, i)),
+                            width="100%"
+                        ),
+                        rx.center(rx.spinner(), width="100%", padding="2em")
+                    ),
+                    width="100%", animation="fadeInUp 0.4s ease-out 0.1s both"
+                ),
+                rx.button(
+                    State.t["submit_continue"], 
+                    on_click=State.submit_answers, 
+                    loading=State.loading,
+                    color_scheme="cyan", size="3", width="100%", min_height="44px",
+                    animation="fadeInUp 0.4s ease-out 0.2s both"
+                ),
+                width="100%",
+                spacing="5",
+            ),
         ),
         width="100%", spacing="5"
     )
@@ -380,9 +429,11 @@ def index() -> rx.Component:
                     box_shadow="0 8px 32px 0 rgba(0,0,0,0.37)"
                 ),
                 max_width={"initial": "95%", "sm": "90%", "md": "600px"},
+                width="100%",
                 padding_top="2em", padding_bottom="5em"
             ),
             width="100%", min_height="100vh",
+            align_items="center",
             background="radial-gradient(circle at top right, #0a192f, #001f3f, #001529)"
         ),
         width="100%"
@@ -412,10 +463,83 @@ if api_router:
     custom_api.include_router(api_router)
     app._api.mount("/api", custom_api)
 
+def admin_dashboard() -> rx.Component:
+    def analytics_row(row):
+        return rx.table.row(
+            rx.table.cell(row["date"]),
+            rx.table.cell(row["demographics"]),
+            rx.table.cell(row["complaint"]),
+            rx.table.cell(row["history"]),
+            rx.table.cell(row["lifestyle"]),
+            rx.table.cell(row["summary"]),
+            rx.table.cell(row["pdf"]),
+        )
+
+    return rx.center(
+        rx.vstack(
+            rx.cond(
+                AdminState.authorized,
+                rx.vstack(
+                    rx.heading("Admin Analytics Dashboard 📊", size="8", color_scheme="cyan"),
+                    rx.text("Conversion Funnel Metrics (Last 7 Days)", color_scheme="gray"),
+                    rx.divider(),
+                    rx.table.root(
+                        rx.table.header(
+                            rx.table.row(
+                                rx.table.column_header_cell("Date"),
+                                rx.table.column_header_cell("Demographics"),
+                                rx.table.column_header_cell("Complaint"),
+                                rx.table.column_header_cell("History"),
+                                rx.table.column_header_cell("Lifestyle"),
+                                rx.table.column_header_cell("Summary"),
+                                rx.table.column_header_cell("PDF Download"),
+                            )
+                        ),
+                        rx.table.body(
+                            rx.foreach(AdminState.analytics_data, analytics_row)
+                        ),
+                        width="100%",
+                        variant="ghost"
+                    ),
+                    rx.button("Back to Home", on_click=rx.redirect("/"), color_scheme="cyan", size="3"),
+                    width="100%",
+                    spacing="6",
+                    padding="2em",
+                    background="rgba(255,255,255,0.05)",
+                    backdrop_filter="blur(15px)",
+                    border="1px solid rgba(255,255,255,0.1)",
+                    border_radius="20px",
+                ),
+                rx.vstack(
+                    rx.icon("lock", size=48, color="red"),
+                    rx.heading("Unauthorized", size="6", color="red"),
+                    rx.text("Please provide a valid token in the URL query parameters (e.g. ?token=...).", color_scheme="gray", text_align="center"),
+                    rx.button("Back to Home", on_click=rx.redirect("/"), color_scheme="gray", size="3"),
+                    spacing="4",
+                    padding="2em",
+                    align_items="center",
+                    border="1px solid rgba(255,255,255,0.1)",
+                    border_radius="20px",
+                )
+            ),
+            max_width="1000px",
+            width="90%",
+            align_items="center",
+            padding_y="5em",
+        ),
+        width="100%",
+        min_height="100vh",
+        background="radial-gradient(circle at top right, #0a192f, #001f3f, #001529)"
+    )
+
+
 app.add_page(index, on_load=State.detect_lang)
+app.add_page(admin_dashboard, route="/admin/dashboard", on_load=AdminState.load_analytics)
 
 import os
-static_dir = os.path.join(os.getcwd(), ".web", "_static")
+static_dir_vite = os.path.join(os.getcwd(), ".web", "build", "client")
+static_dir_legacy = os.path.join(os.getcwd(), ".web", "_static")
+static_dir = static_dir_vite if os.path.exists(static_dir_vite) else static_dir_legacy
 if os.path.exists(static_dir):
     from fastapi.staticfiles import StaticFiles
     app._api.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

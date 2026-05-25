@@ -1,13 +1,21 @@
 import reflex as rx
 import httpx
 import json
-from typing import List, Dict
+from typing import List, Dict, Any
 import os
 from datetime import datetime
 from .i18n import translations
 
 API_BASE_URL = os.environ.get("API_BASE_URL", "/api")
+if API_BASE_URL.startswith("/"):
+    PORT = os.environ.get("PORT", "8080")
+    API_BASE_URL = f"http://127.0.0.1:{PORT}{API_BASE_URL}"
 API_KEY = os.environ.get("SECUREMED_API_KEY", "")
+
+try:
+    from securemed_chat.services.session_service import get_redis
+except ImportError:
+    get_redis = None
 
 class State(rx.State):
     """The app state."""
@@ -60,6 +68,7 @@ class State(rx.State):
     current_answers: List[str] = []
     _qs_buffer: str = ""
     summary_text: str = ""
+    is_emergency: bool = False
     
     # --- UI State ---
     step: int = 0  # 0: Demographics, 1-4: Form, 5: Q&A, 6: Summary
@@ -71,16 +80,32 @@ class State(rx.State):
             accept_lang = self.router.headers.get("accept-language", "")
             if "pt" in accept_lang.lower().split(",")[0]:
                 self.lang = "pt"
+                self.gender = "Feminino"
             else:
                 self.lang = "en"
+                self.gender = "Female"
         except Exception:
             self.lang = "en"
+            self.gender = "Female"
 
     def set_gender(self, val: str):
         self.gender = val
 
     def set_lang(self, val: str):
         self.lang = val
+        # Automatically translate biological sex selection to avoid dropdown selector mismatches
+        if val == "pt" and self.gender == "Female":
+            self.gender = "Feminino"
+        elif val == "pt" and self.gender == "Male":
+            self.gender = "Masculino"
+        elif val == "pt" and self.gender == "Intersex":
+            self.gender = "Intersexo"
+        elif val == "en" and self.gender == "Feminino":
+            self.gender = "Female"
+        elif val == "en" and self.gender == "Masculino":
+            self.gender = "Male"
+        elif val == "en" and self.gender == "Intersexo":
+            self.gender = "Intersex"
 
     def set_chief_complaint(self, val: str):
         self.chief_complaint = val
@@ -110,13 +135,19 @@ class State(rx.State):
             self.family_history.append(item)
 
     def add_medication(self):
-        self.medications.append("")
+        meds = self.medications.copy()
+        meds.append("")
+        self.medications = meds
 
     def update_medication(self, idx: int, val: str):
-        self.medications[idx] = val
+        meds = self.medications.copy()
+        meds[idx] = val
+        self.medications = meds
 
     def remove_medication(self, idx: int):
-        self.medications.pop(idx)
+        meds = self.medications.copy()
+        meds.pop(idx)
+        self.medications = meds
 
     def set_allergies_flag(self, val: bool):
         self.allergies_flag = val
@@ -135,14 +166,44 @@ class State(rx.State):
         answers[idx] = val
         self.current_answers = answers
 
+    def log_analytics_event(self, event_name: str):
+        """Asynchronously log an analytics event in Redis."""
+        if get_redis is None:
+            return
+        
+        import asyncio
+        from datetime import date
+        today_str = date.today().isoformat()
+        key = f"analytics:{today_str}"
+        
+        async def _log():
+            try:
+                client = get_redis()
+                await client.hincrby(key, event_name, 1)
+                await client.expire(key, 30 * 24 * 60 * 60)
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to log analytics event: {e}")
+                
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_log())
+        except RuntimeError:
+            pass
+
     def go_to_step_1(self):
         self.step = 1
+        self.log_analytics_event("demographics_submitted")
 
     def go_to_step_2(self):
+        if not self.specialist.strip() or not self.chief_complaint.strip():
+            return rx.window_alert(self._t["err_chief_complaint"])
         self.step = 2
+        self.log_analytics_event("complaint_submitted")
 
     def go_to_step_3(self):
         self.step = 3
+        self.log_analytics_event("history_submitted")
 
     def go_to_step_4(self):
         self.step = 4
@@ -184,8 +245,10 @@ class State(rx.State):
                         return
                     self.session_id = session_id
                     self.step = 4
+                    self.log_analytics_event("lifestyle_submitted")
                     self.current_answers = []
                     self.questions = []
+                    self.is_emergency = False
                     # Auto-trigger interview questions
                     async for item in self.get_interview_questions():
                         yield item
@@ -202,6 +265,7 @@ class State(rx.State):
         self._qs_buffer = ""
         self.questions = []
         self.current_answers = []
+        self.is_emergency = False
         yield
         
         async with httpx.AsyncClient() as client:
@@ -222,6 +286,15 @@ class State(rx.State):
                         if line.startswith("data: "):
                             chunk = json.loads(line[len("data: "):])
                             self._qs_buffer += chunk
+                            
+                            lower_buffer = self._qs_buffer.lower()
+                            if "emergency" in lower_buffer or "911" in lower_buffer or "urgência" in lower_buffer or "urgencia" in lower_buffer:
+                                self.is_emergency = True
+                                self.questions = []
+                                self.current_answers = []
+                                yield
+                                return
+                                
                             import re
                             # Match lines like "1. Question", "2) Question", etc. Very permissive match
                             qs = [q.strip() for q in re.split(r'\n(?:\d+[\.\)]|\-)\s*', '\n' + self._qs_buffer) if q.strip()]
@@ -253,6 +326,7 @@ class State(rx.State):
             f"--- Questions & Answers ---\n{qs_ans_text}"
         )
         self.step = 5
+        self.log_analytics_event("summary_generated")
 
     async def download_report(self):
         """Step 6: Securely fetch PDF with API Key and trigger download."""
@@ -276,6 +350,7 @@ class State(rx.State):
                     timeout=30.0
                 )
                 if resp.status_code == 200:
+                    self.log_analytics_event("pdf_downloaded")
                     yield rx.download(
                         data=resp.content,
                         filename=f"SecureMed_Report{datetime.now().strftime('_%y%m%d%H%M')}.pdf"
@@ -286,3 +361,48 @@ class State(rx.State):
                 yield rx.window_alert(f"{self._t['err_download_gen']}{str(e)}")
             finally:
                 self.loading = False
+
+
+class AdminState(rx.State):
+    token: str = ""
+    authorized: bool = False
+    analytics_data: List[Dict[str, Any]] = []
+    
+    async def load_analytics(self):
+        query_params = self.router.page.params
+        token_val = query_params.get("token", "")
+        
+        expected_token = os.environ.get("ADMIN_DASHBOARD_TOKEN", "securemed_dev_token")
+        if token_val == expected_token:
+            self.authorized = True
+            await self.fetch_analytics_data()
+        else:
+            self.authorized = False
+            self.analytics_data = []
+
+    async def fetch_analytics_data(self):
+        if get_redis is None:
+            return
+        
+        client = get_redis()
+        from datetime import date, timedelta
+        data = []
+        
+        for i in range(7):
+            day = date.today() - timedelta(days=i)
+            day_str = day.isoformat()
+            key = f"analytics:{day_str}"
+            
+            raw_stats = await client.hgetall(key)
+            stats = {
+                "date": day_str,
+                "demographics": int(raw_stats.get("demographics_submitted", 0)),
+                "complaint": int(raw_stats.get("complaint_submitted", 0)),
+                "history": int(raw_stats.get("history_submitted", 0)),
+                "lifestyle": int(raw_stats.get("lifestyle_submitted", 0)),
+                "summary": int(raw_stats.get("summary_generated", 0)),
+                "pdf": int(raw_stats.get("pdf_downloaded", 0)),
+            }
+            data.append(stats)
+            
+        self.analytics_data = list(reversed(data))

@@ -56,8 +56,8 @@ async def test_session_quota():
         await r.flushdb()
 
         async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            # Create 5 sessions (limit=5)
-            for i in range(5):
+            # Create 20 sessions (limit=20)
+            for i in range(20):
                 resp = await client.post("/api/session/init", json=payload, headers=headers)
                 if resp.status_code == 429 and "Too many session requests" in resp.json()["detail"]:
                     # Manually clear the rate limit key to test quota
@@ -66,8 +66,8 @@ async def test_session_quota():
                 
                 assert resp.status_code == 200
 
-            # 6th session should hit quota
+            # 21st session should hit quota
             await r.delete("rate_limit:init:127.0.0.1")
-            resp6 = await client.post("/api/session/init", json=payload, headers=headers)
-            assert resp6.status_code == 429
-            assert "Daily session limit reached" in resp6.json()["detail"]
+            resp21 = await client.post("/api/session/init", json=payload, headers=headers)
+            assert resp21.status_code == 429
+            assert "Daily session limit reached" in resp21.json()["detail"]

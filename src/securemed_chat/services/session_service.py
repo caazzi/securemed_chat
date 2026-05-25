@@ -100,7 +100,7 @@ async def check_rate_limit(ip: str, limit: int = 10, window: int = 60) -> bool:
     
     return count <= limit
 
-async def check_session_quota(ip: str, limit: int = 5) -> bool:
+async def check_session_quota(ip: str, limit: int = 20) -> bool:
     """
     Checks if the given IP has exceeded the daily session quota.
     limit: max sessions per 24h

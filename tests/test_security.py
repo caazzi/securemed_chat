@@ -28,6 +28,9 @@ class TestP1_NoHardcodedIP:
 class TestP2_APIKeyEnforced:
     def test_config_raises_without_api_key(self):
         """Importing config with no SECUREMED_API_KEY must raise ValueError."""
+        import dotenv
+        original_load_dotenv = dotenv.load_dotenv
+        dotenv.load_dotenv = lambda *args, **kwargs: None
         saved = os.environ.pop("SECUREMED_API_KEY", None)
         try:
             import securemed_chat.core.config as cfg
@@ -37,6 +40,7 @@ class TestP2_APIKeyEnforced:
             except ValueError as exc:
                 assert "SECUREMED_API_KEY" in str(exc)
         finally:
+            dotenv.load_dotenv = original_load_dotenv
             if saved is not None:
                 os.environ["SECUREMED_API_KEY"] = saved
 
