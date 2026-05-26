@@ -8,20 +8,23 @@ except ImportError:
 
 def header() -> rx.Component:
     return rx.hstack(
-        rx.heading(State.t["title"], size={"initial": "6", "sm": "7"}, color_scheme="cyan"),
+        rx.heading(State.t["title"], size={"initial": "5", "xs": "6", "sm": "7"}, color_scheme="cyan"),
         rx.spacer(),
-        rx.select(
-            ["en", "pt"],
-            on_change=State.set_lang,
-            value=State.lang,
-            width="80px",
-            min_height="44px",
-            variant="ghost",
-            aria_label="Select language"
+        rx.hstack(
+            rx.select(
+                ["en", "pt"],
+                on_change=State.set_lang,
+                value=State.lang,
+                width="70px",
+                min_height="44px",
+                variant="ghost",
+                aria_label="Select language"
+            ),
+            rx.color_mode.button(),
+            spacing="2",
         ),
-        rx.color_mode.button(),
         width="100%",
-        padding={"initial": "1em", "sm": "1.5em"},
+        padding={"initial": "0.75em 1em", "sm": "1.5em"},
         border_bottom="1px solid rgba(255,255,255,0.1)",
     )
 
@@ -35,12 +38,14 @@ def step_0_demographics() -> rx.Component:
         ),
         rx.vstack(
             rx.text(State.t["age"], weight="bold"),
-            rx.hstack(
+            rx.grid(
                 *[rx.button(bracket, on_click=State.set_age_bracket(bracket),
                             variant=rx.cond(State.age_bracket == bracket, "solid", "outline"),
-                            padding="0.75em 1em", min_height="44px")
+                            width="100%", min_height="44px")
                   for bracket in ["18-25", "26-35", "36-45", "46-60", "60+"]],
-                wrap="wrap", spacing="2"
+                columns={"initial": "2", "xs": "3", "sm": "5"},
+                spacing="2",
+                width="100%"
             ),
             rx.text(State.t["gender"], weight="bold"),
             rx.select(
@@ -104,12 +109,16 @@ def step_1_chief_complaint() -> rx.Component:
         ),
         rx.vstack(
             rx.text(State.t["duration"], weight="bold"),
-            rx.hstack(
-                *[rx.button(opt, on_click=State.set_duration(opt),
-                            variant=rx.cond(State.duration == opt, "solid", "outline"),
-                            padding="0.75em 1em", min_height="44px")
-                  for opt in ["Started today", "A few days", "Weeks", "Months", "Years"]],
-                wrap="wrap", spacing="2"
+            rx.grid(
+                rx.foreach(
+                    State.duration_opts,
+                    lambda opt: rx.button(opt, on_click=State.set_duration(opt),
+                                          variant=rx.cond(State.duration == opt, "solid", "outline"),
+                                          width="100%", min_height="44px")
+                ),
+                columns={"initial": "2", "xs": "3", "sm": "5"},
+                spacing="2",
+                width="100%"
             ),
             rx.text(State.t["complaint_detail"], weight="bold"),
             rx.text_area(
@@ -126,7 +135,6 @@ def step_1_chief_complaint() -> rx.Component:
         rx.button(State.t["start_btn"], on_click=State.go_to_step_2, color_scheme="cyan", size="3", width="100%", min_height="44px", animation="fadeInUp 0.4s ease-out 0.3s both"),
         width="100%", spacing="5"
     )
-
 def step_2_history() -> rx.Component:
     def medication_item(med_idx):
         return rx.hstack(
@@ -134,19 +142,26 @@ def step_2_history() -> rx.Component:
                 placeholder=State.t["medications_ph"],
                 on_change=lambda val: State.update_medication(med_idx, val),
                 value=State.medications[med_idx],
-                width="100%",
+                flex="1",
                 min_height="44px",
                 aria_label="Medication name"
             ),
             rx.button(
-                State.t["remove"], 
+                rx.hstack(
+                    rx.icon("trash", size=16),
+                    rx.text(State.t["remove"], display={"initial": "none", "sm": "block"}),
+                    spacing="2",
+                    align_items="center",
+                ),
                 on_click=lambda: State.remove_medication(med_idx), 
                 color_scheme="red", 
                 variant="outline",
                 min_height="44px",
+                width={"initial": "44px", "sm": "auto"},
                 aria_label="Remove medication"
             ),
-            width="100%"
+            width="100%",
+            spacing="2"
         )
 
     return rx.vstack(
@@ -158,12 +173,16 @@ def step_2_history() -> rx.Component:
         ),
         rx.vstack(
             rx.text(State.t["conditions_label"], weight="bold"),
-            rx.hstack(
-                *[rx.button(opt, on_click=State.toggle_condition(opt),
-                            variant=rx.cond(State.conditions.contains(opt), "solid", "outline"),
-                            padding="0.75em 1em", min_height="44px")
-                  for opt in ["Hypertension", "Diabetes", "Asthma/Bronchitis", "Depression/Anxiety", "Thyroid issues"]],
-                wrap="wrap", spacing="2"
+            rx.grid(
+                rx.foreach(
+                    State.conditions_opts,
+                    lambda opt: rx.button(opt, on_click=State.toggle_condition(opt),
+                                          variant=rx.cond(State.conditions.contains(opt), "solid", "outline"),
+                                          width="100%", min_height="44px")
+                ),
+                columns={"initial": "2", "xs": "3", "sm": "5"},
+                spacing="2",
+                width="100%"
             ),
             rx.text(State.t["medications_label"], weight="bold"),
             rx.vstack(
@@ -209,31 +228,43 @@ def step_3_lifestyle() -> rx.Component:
         ),
         rx.vstack(
             rx.text(State.t["family_history_label"], weight="bold"),
-            rx.hstack(
-                *[rx.button(opt, on_click=State.toggle_family_history(opt),
-                            variant=rx.cond(State.family_history.contains(opt), "solid", "outline"),
-                            padding="0.75em 1em", min_height="44px")
-                  for opt in ["Cancer", "Heart disease/Heart attack", "Diabetes", "Alzheimer's"]],
-                wrap="wrap", spacing="2"
+            rx.grid(
+                rx.foreach(
+                    State.family_history_opts,
+                    lambda opt: rx.button(opt, on_click=State.toggle_family_history(opt),
+                                          variant=rx.cond(State.family_history.contains(opt), "solid", "outline"),
+                                          width="100%", min_height="44px")
+                ),
+                columns={"initial": "2", "xs": "3", "sm": "4"},
+                spacing="2",
+                width="100%"
             ),
             animation="fadeInUp 0.4s ease-out 0.1s both", spacing="4", width="100%"
         ),
         rx.vstack(
             rx.text(State.t["smoking_label"], weight="bold"),
-            rx.hstack(
-                *[rx.button(opt, on_click=State.set_smoking(opt),
-                            variant=rx.cond(State.smoking == opt, "solid", "outline"),
-                            padding="0.75em 1em", min_height="44px")
-                  for opt in ["Currently smoke", "Former smoker", "Never smoked"]],
-                wrap="wrap", spacing="2"
+            rx.grid(
+                rx.foreach(
+                    State.smoking_opts,
+                    lambda opt: rx.button(opt, on_click=State.set_smoking(opt),
+                                          variant=rx.cond(State.smoking == opt, "solid", "outline"),
+                                          width="100%", min_height="44px")
+                ),
+                columns={"initial": "2", "xs": "3", "sm": "3"},
+                spacing="2",
+                width="100%"
             ),
             rx.text(State.t["alcohol_label"], weight="bold"),
-            rx.hstack(
-                *[rx.button(opt, on_click=State.set_alcohol(opt),
-                            variant=rx.cond(State.alcohol == opt, "solid", "outline"),
-                            padding="0.75em 1em", min_height="44px")
-                  for opt in ["Rarely", "Socially", "Frequently", "Never"]],
-                wrap="wrap", spacing="2"
+            rx.grid(
+                rx.foreach(
+                    State.alcohol_opts,
+                    lambda opt: rx.button(opt, on_click=State.set_alcohol(opt),
+                                          variant=rx.cond(State.alcohol == opt, "solid", "outline"),
+                                          width="100%", min_height="44px")
+                ),
+                columns={"initial": "2", "xs": "2", "sm": "4"},
+                spacing="2",
+                width="100%"
             ),
             animation="fadeInUp 0.4s ease-out 0.2s both", spacing="4", width="100%"
         ),
@@ -273,7 +304,7 @@ def step_4_interview_qs() -> rx.Component:
             State.is_emergency,
             rx.vstack(
                 rx.hstack(
-                    rx.icon("alert-triangle", size=28, color="red"),
+                    rx.icon("triangle_alert", size=28, color="red"),
                     rx.heading(
                         rx.cond(State.lang == "pt", "AVISO DE EMERGÊNCIA", "EMERGENCY WARNING"),
                         size="5",
@@ -365,7 +396,6 @@ def step_5_summary() -> rx.Component:
         ),
         width="100%", spacing="5", padding_y="2em"
     )
-
 def stepper_component() -> rx.Component:
     def stepper_item(idx: int):
         is_active = State.step == idx
@@ -395,11 +425,30 @@ def stepper_component() -> rx.Component:
             spacing="2", align_items="center"
         )
         
-    return rx.box(
+    desktop_stepper = rx.hstack(
+        *[stepper_item(i) for i in range(6)],
+        spacing={"initial": "2", "sm": "5"}, justify="center", width="100%", wrap="wrap"
+    )
+    
+    mobile_progress = rx.vstack(
         rx.hstack(
-            *[stepper_item(i) for i in range(6)],
-            spacing={"initial": "2", "sm": "5"}, justify="center", width="100%", wrap="wrap"
+            rx.text(f"Step {State.step + 1} of 6", weight="bold", size="2"),
+            rx.spacer(),
+            rx.cond(
+                State.step_names.length() > State.step,
+                rx.text(State.step_names[State.step], color="cyan", size="2", weight="bold"),
+                rx.text("")
+            ),
+            width="100%",
         ),
+        rx.progress(value=State.step_progress, width="100%", color_scheme="cyan"),
+        width="100%",
+        spacing="1",
+    )
+    
+    return rx.box(
+        rx.box(mobile_progress, display={"initial": "block", "sm": "none"}),
+        rx.box(desktop_stepper, display={"initial": "none", "sm": "block"}),
         padding_bottom="2em", width="100%",
     )
 
@@ -444,7 +493,10 @@ style = {
         "from": {"opacity": "0", "transform": "translateY(16px)"},
         "to": {"opacity": "1", "transform": "translateY(0)"}
     },
-    "::placeholder": {"color": "rgba(255,255,255,0.6)"}
+    "::placeholder": {"color": "rgba(255,255,255,0.6)"},
+    'a[href="https://reflex.dev"]': {
+        "display": "none !important",
+    }
 }
 
 app = rx.App(
@@ -483,23 +535,27 @@ def admin_dashboard() -> rx.Component:
                     rx.heading("Admin Analytics Dashboard 📊", size="8", color_scheme="cyan"),
                     rx.text("Conversion Funnel Metrics (Last 7 Days)", color_scheme="gray"),
                     rx.divider(),
-                    rx.table.root(
-                        rx.table.header(
-                            rx.table.row(
-                                rx.table.column_header_cell("Date"),
-                                rx.table.column_header_cell("Demographics"),
-                                rx.table.column_header_cell("Complaint"),
-                                rx.table.column_header_cell("History"),
-                                rx.table.column_header_cell("Lifestyle"),
-                                rx.table.column_header_cell("Summary"),
-                                rx.table.column_header_cell("PDF Download"),
-                            )
+                    rx.box(
+                        rx.table.root(
+                            rx.table.header(
+                                rx.table.row(
+                                    rx.table.column_header_cell("Date"),
+                                    rx.table.column_header_cell("Demographics"),
+                                    rx.table.column_header_cell("Complaint"),
+                                    rx.table.column_header_cell("History"),
+                                    rx.table.column_header_cell("Lifestyle"),
+                                    rx.table.column_header_cell("Summary"),
+                                    rx.table.column_header_cell("PDF Download"),
+                                )
+                            ),
+                            rx.table.body(
+                                rx.foreach(AdminState.analytics_data, analytics_row)
+                            ),
+                            width="100%",
+                            variant="ghost"
                         ),
-                        rx.table.body(
-                            rx.foreach(AdminState.analytics_data, analytics_row)
-                        ),
+                        overflow_x="auto",
                         width="100%",
-                        variant="ghost"
                     ),
                     rx.button("Back to Home", on_click=rx.redirect("/"), color_scheme="cyan", size="3"),
                     width="100%",
@@ -544,4 +600,5 @@ if os.path.exists(static_dir):
     from fastapi.staticfiles import StaticFiles
     app._api.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
-api = app._api
+app._api.router.lifespan_context = app._run_lifespan_tasks
+api = app._context_middleware(app._api)

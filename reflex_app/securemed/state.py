@@ -39,6 +39,30 @@ class State(rx.State):
     @rx.var
     def step_names(self) -> List[str]:
         return self._t.get("step_names", [])
+
+    @rx.var
+    def duration_opts(self) -> List[str]:
+        return self._t["duration_opts"]
+
+    @rx.var
+    def conditions_opts(self) -> List[str]:
+        return self._t["conditions_opts"]
+
+    @rx.var
+    def family_history_opts(self) -> List[str]:
+        return self._t["family_history_opts"]
+
+    @rx.var
+    def smoking_opts(self) -> List[str]:
+        return self._t["smoking_opts"]
+
+    @rx.var
+    def alcohol_opts(self) -> List[str]:
+        return self._t["alcohol_opts"]
+
+    @rx.var
+    def step_progress(self) -> int:
+        return int(((self.step + 1) / 6) * 100)
     
     # --- General Form State ---
     gender: str = "Female"
