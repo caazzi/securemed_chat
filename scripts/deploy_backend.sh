@@ -4,10 +4,10 @@
 # --- CONFIGURATION (OVERRIDABLE VIA ENV) ---
 PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-"ambassist-1771888311"} 
 REGION=${GOOGLE_CLOUD_REGION:-"southamerica-east1"}
-SERVICE_NAME=${SERVICE_NAME:-"securemed-api"}
+SERVICE_NAME=${SERVICE_NAME:-"preconsult-api"}
 # ------------------------------------
 
-echo "🚀 Starting Zero-Cost Backend Deployment for SecureMed..."
+echo "🚀 Starting Zero-Cost Backend Deployment for PreConsult..."
 
 # Check if logged in
 if ! gcloud auth list --format="value(account)" | grep -q "@"; then
@@ -23,9 +23,9 @@ gcloud config set project $PROJECT_ID
 # --min-instances 0 : Essential for zero cost
 # --no-cpu-throttling : Optional but recommended for better latency
 # Require the API key to be set in the environment before deploying
-if [ -z "$SECUREMED_API_KEY" ]; then
-    echo "❌ Error: SECUREMED_API_KEY environment variable is not set."
-    echo "   Set it before running this script: export SECUREMED_API_KEY=<your-secret-key>"
+if [ -z "$PRECONSULT_API_KEY" ]; then
+    echo "❌ Error: PRECONSULT_API_KEY environment variable is not set."
+    echo "   Set it before running this script: export PRECONSULT_API_KEY=<your-secret-key>"
     exit 1
 fi
 
@@ -38,7 +38,7 @@ gcloud run deploy $SERVICE_NAME \
     --max-instances 5 \
     --concurrency 50 \
     --allow-unauthenticated \
-    --set-env-vars="SECUREMED_API_KEY=$SECUREMED_API_KEY"
+    --set-env-vars="PRECONSULT_API_KEY=$PRECONSULT_API_KEY"
 
 echo "✅ Backend Deployment Finished!"
 echo "🔗 Your API URL should be visible above."

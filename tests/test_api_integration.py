@@ -4,7 +4,7 @@ import json
 from unittest.mock import patch, MagicMock, AsyncMock
 import httpx
 from httpx import ASGITransport
-from securemed_chat.main import app
+from preconsult.main import app
 
 HEADERS = {"X-API-KEY": "ci_test_key_123"}
 
@@ -27,10 +27,10 @@ FULL_SESSION_PAYLOAD = {
 FULL_SESSION_DATA = {**FULL_SESSION_PAYLOAD}
 
 @pytest.mark.asyncio
-@patch("securemed_chat.api.endpoints.create_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_rate_limit", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_session_quota", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.increment_session_quota", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.create_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_rate_limit", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_session_quota", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.increment_session_quota", new_callable=AsyncMock)
 async def test_init_session(mock_inc, mock_quota, mock_rate, mock_create):
     mock_create.return_value = "fake-session-id"
     mock_quota.return_value = True
@@ -43,10 +43,10 @@ async def test_init_session(mock_inc, mock_quota, mock_rate, mock_create):
     mock_create.assert_called_once()
 
 @pytest.mark.asyncio
-@patch("securemed_chat.api.endpoints.create_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_rate_limit", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_session_quota", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.increment_session_quota", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.create_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_rate_limit", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_session_quota", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.increment_session_quota", new_callable=AsyncMock)
 async def test_init_session_with_full_form(mock_inc, mock_quota, mock_rate, mock_create):
     mock_create.return_value = "fake-session-id"
     mock_quota.return_value = True
@@ -61,10 +61,10 @@ async def test_init_session_with_full_form(mock_inc, mock_quota, mock_rate, mock
     assert stored["age_bracket"] == "26-35"
 
 @pytest.mark.asyncio
-@patch("securemed_chat.api.endpoints.get_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.stream_interview_questions")
-@patch("securemed_chat.api.endpoints.check_rate_limit", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.get_interview_chain", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.get_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.stream_interview_questions")
+@patch("preconsult.api.endpoints.check_rate_limit", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.get_interview_chain", new_callable=AsyncMock)
 async def test_interview_questions_stream(mock_chain, mock_rate, mock_stream, mock_get):
     mock_get.return_value = FULL_SESSION_DATA
     mock_rate.return_value = True
@@ -83,9 +83,9 @@ async def test_interview_questions_stream(mock_chain, mock_rate, mock_stream, mo
             assert mock_stream.called
 
 @pytest.mark.asyncio
-@patch("securemed_chat.api.endpoints.get_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_rate_limit", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.get_interview_chain", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.get_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_rate_limit", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.get_interview_chain", new_callable=AsyncMock)
 async def test_interview_stream_session_not_found(mock_chain, mock_rate, mock_get):
     mock_get.return_value = {}
     mock_rate.return_value = True
@@ -94,9 +94,9 @@ async def test_interview_stream_session_not_found(mock_chain, mock_rate, mock_ge
     assert response.status_code == 404
 
 @pytest.mark.asyncio
-@patch("securemed_chat.api.endpoints.generate_pdf_report_in_memory")
-@patch("securemed_chat.api.endpoints.get_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_rate_limit", return_value=True)
+@patch("preconsult.api.endpoints.generate_pdf_report_in_memory")
+@patch("preconsult.api.endpoints.get_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_rate_limit", return_value=True)
 async def test_generate_pdf_with_qa_pairs(mock_rate, mock_get, mock_pdf):
     mock_get.return_value = FULL_SESSION_DATA
     mock_pdf.return_value = (b"%PDF-fake-pdf-content", "Medical_Summary_Report.pdf")
@@ -113,13 +113,13 @@ async def test_generate_pdf_with_qa_pairs(mock_rate, mock_get, mock_pdf):
     assert response.content.startswith(b"%PDF-")
 
 @pytest.mark.asyncio
-@patch("securemed_chat.api.endpoints.generate_pdf_report_in_memory")
-@patch("securemed_chat.api.endpoints.stream_interview_questions")
-@patch("securemed_chat.api.endpoints.get_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.create_session", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_rate_limit", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.check_session_quota", new_callable=AsyncMock)
-@patch("securemed_chat.api.endpoints.increment_session_quota", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.generate_pdf_report_in_memory")
+@patch("preconsult.api.endpoints.stream_interview_questions")
+@patch("preconsult.api.endpoints.get_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.create_session", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_rate_limit", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.check_session_quota", new_callable=AsyncMock)
+@patch("preconsult.api.endpoints.increment_session_quota", new_callable=AsyncMock)
 async def test_full_session_happy_path(mock_inc, mock_quota, mock_rate, mock_create, mock_get, mock_stream, mock_pdf):
     mock_create.return_value = "happy-session-id"
     mock_quota.return_value = True

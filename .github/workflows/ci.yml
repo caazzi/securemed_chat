@@ -1,4 +1,4 @@
-name: SecureMed Chat CI
+name: PreConsult CI
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
     - name: Run tests with pytest
       env:
         PYTHONPATH: src
-        SECUREMED_API_KEY: ci_test_key_123
+        PRECONSULT_API_KEY: ci_test_key_123
         GOOGLE_CLOUD_PROJECT: ci_test_project
       run: |
         uv run pytest tests/ -v

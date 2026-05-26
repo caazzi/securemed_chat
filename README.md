@@ -1,4 +1,4 @@
-# SecureMed Chat — Privacy-First Medical Intake Assistant
+# PreConsult — Privacy-First Medical Intake Assistant
 
 An AI-powered web app that helps patients organize their symptoms before a doctor's visit. The core design constraint: **zero data persistence** — no database, no user accounts, no logs containing health data.
 
@@ -8,7 +8,7 @@ An AI-powered web app that helps patients organize their symptoms before a docto
 
 Patients arrive at consultations anxious and forget key details. Doctors have limited time. The gap between what the patient knows and what the doctor hears costs both sides.
 
-SecureMed bridges that gap with a guided AI interview that generates a structured clinical summary — then destroys all data when the session ends.
+PreConsult bridges that gap with a guided AI interview that generates a structured clinical summary — then destroys all data when the session ends.
 
 ---
 
@@ -25,7 +25,7 @@ SecureMed bridges that gap with a guided AI interview that generates a structure
 
 ```
 ┌──────────────────────────────────────────┐
-│             SecureMed App                │
+│             PreConsult App               │
 │       (Unified Cloud Run Service)        │
 ├────────────────────┬─────────────────────┤
 │     Reflex UI      │   FastAPI Backend   │
@@ -93,7 +93,7 @@ The project uses `uv` for lightning-fast dependency management.
 
 Requires a `.env` file in the root with:
 ```bash
-SECUREMED_API_KEY=your_key
+PRECONSULT_API_KEY=your_key
 GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 ```
 
@@ -115,7 +115,7 @@ uv run python -m pytest tests/
 The app is deployed as a single consolidated container:
 
 ```bash
-gcloud run deploy securemed-chat \
+gcloud run deploy preconsult \
   --source . \
   --project=securemed-chat-494521 \
   --region=southamerica-east1 \
@@ -123,9 +123,9 @@ gcloud run deploy securemed-chat \
   --cpu=1 \
   --min-instances=0 \
   --max-instances=5 \
-  --set-secrets=SECUREMED_API_KEY=SECUREMED_API_KEY:latest,REDIS_URL=REDIS_URL:latest
+  --set-secrets=PRECONSULT_API_KEY=PRECONSULT_API_KEY:latest,REDIS_URL=REDIS_URL:latest
 ```
 
 ---
 
-> **Disclaimer**: SecureMed is an organizational tool, not a medical device. It does not provide diagnoses or medical advice. Always consult a qualified healthcare provider.
+> **Disclaimer**: PreConsult is an organizational tool, not a medical device. It does not provide diagnoses or medical advice. Always consult a qualified healthcare provider.

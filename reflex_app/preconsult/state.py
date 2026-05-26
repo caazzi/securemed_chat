@@ -10,10 +10,10 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "/api")
 if API_BASE_URL.startswith("/"):
     PORT = os.environ.get("PORT", "8080")
     API_BASE_URL = f"http://127.0.0.1:{PORT}{API_BASE_URL}"
-API_KEY = os.environ.get("SECUREMED_API_KEY", "")
+API_KEY = os.environ.get("PRECONSULT_API_KEY", "")
 
 try:
-    from securemed_chat.services.session_service import get_redis
+    from preconsult.services.session_service import get_redis
 except ImportError:
     get_redis = None
 
@@ -377,7 +377,7 @@ class State(rx.State):
                     self.log_analytics_event("pdf_downloaded")
                     yield rx.download(
                         data=resp.content,
-                        filename=f"SecureMed_Report{datetime.now().strftime('_%y%m%d%H%M')}.pdf"
+                        filename=f"PreConsult_Report{datetime.now().strftime('_%y%m%d%H%M')}.pdf"
                     )
                 else:
                     yield rx.window_alert(f"{self._t['err_download']}{resp.text}")
@@ -396,7 +396,7 @@ class AdminState(rx.State):
         query_params = self.router.page.params
         token_val = query_params.get("token", "")
         
-        expected_token = os.environ.get("ADMIN_DASHBOARD_TOKEN", "securemed_dev_token")
+        expected_token = os.environ.get("ADMIN_DASHBOARD_TOKEN", "preconsult_dev_token")
         if token_val == expected_token:
             self.authorized = True
             await self.fetch_analytics_data()

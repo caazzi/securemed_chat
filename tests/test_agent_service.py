@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from langchain_core.language_models import FakeListChatModel
-from securemed_chat.services.agent_service import (
+from preconsult.services.agent_service import (
     get_language_instructions,
     get_interview_chain,
     stream_interview_questions
 )
-import securemed_chat.services.agent_service as agent_service
+import preconsult.services.agent_service as agent_service
 
 @pytest.fixture(autouse=True)
 def reset_singletons():
@@ -23,7 +23,7 @@ def test_language_instructions_pt():
     assert "não mencionado" in instr["not_mentioned"].lower()
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.agent_service.get_llm")
+@patch("preconsult.services.agent_service.get_llm")
 async def test_interview_chain_streams_questions(mock_get_llm):
     fake_llm = FakeListChatModel(responses=["1. Question A?\n2. Question B?"])
     mock_get_llm.return_value = fake_llm
@@ -53,7 +53,7 @@ async def test_interview_chain_streams_questions(mock_get_llm):
     assert mock_get_llm.called
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.agent_service.get_llm")
+@patch("preconsult.services.agent_service.get_llm")
 async def test_interview_chain_pt(mock_get_llm):
     fake_llm = FakeListChatModel(responses=["1. Pergunta A?"])
     mock_get_llm.return_value = fake_llm
@@ -92,7 +92,7 @@ def test_interview_prompt_contains_emergency_rule():
     assert "do not generate questions" in system_msg.lower()
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.agent_service.get_llm")
+@patch("preconsult.services.agent_service.get_llm")
 async def test_emergency_detection_in_output(mock_get_llm):
     fake_llm = FakeListChatModel(responses=["⚠️ EMERGENCY: Please call 911 immediately."])
     mock_get_llm.return_value = fake_llm
@@ -113,9 +113,9 @@ async def test_emergency_detection_in_output(mock_get_llm):
     assert not full_text.startswith("1.")
 
 @pytest.mark.asyncio
-@patch("reflex_app.securemed.state.httpx.AsyncClient")
+@patch("reflex_app.preconsult.state.httpx.AsyncClient")
 async def test_reflex_state_emergency_detection(mock_client_class):
-    from reflex_app.securemed.state import State
+    from reflex_app.preconsult.state import State
     
     # Mock the AsyncClient.stream response
     mock_response = MagicMock()

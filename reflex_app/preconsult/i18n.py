@@ -1,6 +1,6 @@
 translations = {
     "en": {
-        "title": "SecureMed Chat",
+        "title": "PreConsult",
         "intake": "Patient Intake",
         "intake_desc": "Tell us about yourself. We'll help you organize your thoughts.",
         "age": "Age Bracket",
@@ -76,7 +76,7 @@ translations = {
         "err_download_gen": "Download Error: "
     },
     "pt": {
-        "title": "Chat SecureMed",
+        "title": "Pré-Consulta",
         "intake": "Triagem do Paciente",
         "intake_desc": "Fale-nos sobre você. Nós o ajudaremos a organizar seus pensamentos.",
         "age": "Faixa Etária",

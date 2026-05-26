@@ -1,7 +1,7 @@
 import reflex as rx
 from .state import State, AdminState
 try:
-    from securemed_chat.api.endpoints import router as api_router
+    from preconsult.api.endpoints import router as api_router
 except ImportError:
     api_router = None
 

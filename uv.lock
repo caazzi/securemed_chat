@@ -1375,6 +1375,50 @@ wheels = [
 ]
 
 [[package]]
+name = "preconsult"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "google-cloud-aiplatform" },
+    { name = "gunicorn" },
+    { name = "langchain" },
+    { name = "langchain-google-vertexai" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "redis" },
+    { name = "reflex" },
+    { name = "reportlab" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+test = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = "==0.136.1" },
+    { name = "google-cloud-aiplatform", specifier = "==1.117.0" },
+    { name = "gunicorn", specifier = "==23.0.0" },
+    { name = "httpx", marker = "extra == 'test'" },
+    { name = "langchain", specifier = "==0.3.27" },
+    { name = "langchain-google-vertexai", specifier = "==2.1.2" },
+    { name = "pydantic", specifier = "==2.11.7" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "python-dotenv", specifier = "==1.1.1" },
+    { name = "redis", specifier = "==6.4.0" },
+    { name = "reflex", specifier = "==0.9.1" },
+    { name = "reportlab", specifier = "==4.4.10" },
+    { name = "uvicorn", extras = ["standard"], specifier = "==0.34.0" },
+]
+provides-extras = ["test"]
+
+[[package]]
 name = "proto-plus"
 version = "1.27.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2003,50 +2047,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/e9/67/cae617f1351490c25
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/76/6d163cfac87b632216f71879e6b2cf17163f773ff59c00b5ff4900a80fa3/rich-14.3.4-py3-none-any.whl", hash = "sha256:07e7adb4690f68864777b1450859253bed81a99a31ac321ac1817b2313558952", size = 310480, upload-time = "2026-04-11T02:57:47.484Z" },
 ]
-
-[[package]]
-name = "securemed-chat"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "google-cloud-aiplatform" },
-    { name = "gunicorn" },
-    { name = "langchain" },
-    { name = "langchain-google-vertexai" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "redis" },
-    { name = "reflex" },
-    { name = "reportlab" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-test = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = "==0.136.1" },
-    { name = "google-cloud-aiplatform", specifier = "==1.117.0" },
-    { name = "gunicorn", specifier = "==23.0.0" },
-    { name = "httpx", marker = "extra == 'test'" },
-    { name = "langchain", specifier = "==0.3.27" },
-    { name = "langchain-google-vertexai", specifier = "==2.1.2" },
-    { name = "pydantic", specifier = "==2.11.7" },
-    { name = "pytest", marker = "extra == 'test'" },
-    { name = "pytest-asyncio", marker = "extra == 'test'" },
-    { name = "python-dotenv", specifier = "==1.1.1" },
-    { name = "redis", specifier = "==6.4.0" },
-    { name = "reflex", specifier = "==0.9.1" },
-    { name = "reportlab", specifier = "==4.4.10" },
-    { name = "uvicorn", extras = ["standard"], specifier = "==0.34.0" },
-]
-provides-extras = ["test"]
 
 [[package]]
 name = "shapely"

@@ -1,7 +1,7 @@
 import pytest
 import reflex as rx
-from reflex_app.securemed.securemed import header, stepper_component, step_2_history, admin_dashboard
-from reflex_app.securemed.state import State
+from reflex_app.preconsult.preconsult import header, stepper_component, step_2_history, admin_dashboard
+from reflex_app.preconsult.state import State
 
 def test_header_rendering():
     comp = header()

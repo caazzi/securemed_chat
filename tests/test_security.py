@@ -15,7 +15,7 @@ import importlib
 class TestP1_NoHardcodedIP:
     def test_config_source_has_no_hardcoded_ip(self):
         """The config module source must not contain the old public IP."""
-        import securemed_chat.core.config as cfg
+        import preconsult.core.config as cfg
         src_path = cfg.__file__
         with open(src_path) as f:
             source = f.read()
@@ -27,22 +27,22 @@ class TestP1_NoHardcodedIP:
 # ---------------------------------------------------------------------------
 class TestP2_APIKeyEnforced:
     def test_config_raises_without_api_key(self):
-        """Importing config with no SECUREMED_API_KEY must raise ValueError."""
+        """Importing config with no PRECONSULT_API_KEY must raise ValueError."""
         import dotenv
         original_load_dotenv = dotenv.load_dotenv
         dotenv.load_dotenv = lambda *args, **kwargs: None
-        saved = os.environ.pop("SECUREMED_API_KEY", None)
+        saved = os.environ.pop("PRECONSULT_API_KEY", None)
         try:
-            import securemed_chat.core.config as cfg
+            import preconsult.core.config as cfg
             try:
                 importlib.reload(cfg)
                 assert False, "Expected ValueError was not raised"
             except ValueError as exc:
-                assert "SECUREMED_API_KEY" in str(exc)
+                assert "PRECONSULT_API_KEY" in str(exc)
         finally:
             dotenv.load_dotenv = original_load_dotenv
             if saved is not None:
-                os.environ["SECUREMED_API_KEY"] = saved
+                os.environ["PRECONSULT_API_KEY"] = saved
 
 
 # ---------------------------------------------------------------------------
@@ -50,14 +50,14 @@ class TestP2_APIKeyEnforced:
 # ---------------------------------------------------------------------------
 class TestP4_NoDefaultKeyInReflexFrontend:
     def test_reflex_state_has_no_default_key(self):
-        """reflex_app/securemed/state.py must not contain a hardcoded default API key."""
+        """reflex_app/preconsult/state.py must not contain a hardcoded default API key."""
         state_path = os.path.join(
-            os.path.dirname(__file__), "..", "reflex_app", "securemed", "state.py"
+            os.path.dirname(__file__), "..", "reflex_app", "preconsult", "state.py"
         )
         with open(state_path) as f:
             source = f.read()
         assert "dev_key_123" not in source, (
-            "Insecure default API key still present in reflex_app/securemed/state.py"
+            "Insecure default API key still present in reflex_app/preconsult/state.py"
         )
 
 
@@ -69,7 +69,7 @@ class TestP5_ErrorResponsesSanitized:
         """HTTPException detail args must not contain f-string {e} patterns."""
         endpoints_path = os.path.join(
             os.path.dirname(__file__),
-            "..", "src", "securemed_chat", "api", "endpoints.py",
+            "..", "src", "preconsult", "api", "endpoints.py",
         )
         with open(endpoints_path) as f:
             source = f.read()
@@ -84,15 +84,15 @@ class TestP5_ErrorResponsesSanitized:
 # ---------------------------------------------------------------------------
 class TestP6_Sprint5Features:
     def test_auto_destruction_notice_en(self):
-        from reflex_app.securemed.i18n import translations
+        from reflex_app.preconsult.i18n import translations
         assert "deleted" in translations["en"]["complete_desc"].lower()
 
     def test_auto_destruction_notice_pt(self):
-        from reflex_app.securemed.i18n import translations
+        from reflex_app.preconsult.i18n import translations
         assert "apagados" in translations["pt"]["complete_desc"].lower()
 
     def test_emergency_rule_in_interview_prompt(self):
-        from securemed_chat.services.agent_service import get_interview_chain
+        from preconsult.services.agent_service import get_interview_chain
         chain = get_interview_chain()
         prompt = chain.steps[0]
         system_msg = str(prompt.messages[0])

@@ -1,10 +1,10 @@
 import pytest
 import json
 from unittest.mock import patch, MagicMock, AsyncMock
-from securemed_chat.services.session_service import create_session, get_session, update_session
+from preconsult.services.session_service import create_session, get_session, update_session
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.session_service.get_redis")
+@patch("preconsult.services.session_service.get_redis")
 async def test_create_session(mock_get_redis):
     mock_client = AsyncMock()
     mock_get_redis.return_value = mock_client
@@ -17,7 +17,7 @@ async def test_create_session(mock_get_redis):
     assert mock_client.expire.called
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.session_service.get_redis")
+@patch("preconsult.services.session_service.get_redis")
 async def test_get_session_success(mock_get_redis):
     mock_client = AsyncMock()
     mock_get_redis.return_value = mock_client
@@ -30,7 +30,7 @@ async def test_get_session_success(mock_get_redis):
     assert mock_client.expire.called
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.session_service.get_redis")
+@patch("preconsult.services.session_service.get_redis")
 async def test_get_session_not_found(mock_get_redis):
     mock_client = AsyncMock()
     mock_get_redis.return_value = mock_client
@@ -40,7 +40,7 @@ async def test_get_session_not_found(mock_get_redis):
     assert result == {}
 
 @pytest.mark.asyncio
-@patch("securemed_chat.services.session_service.get_redis")
+@patch("preconsult.services.session_service.get_redis")
 async def test_update_session(mock_get_redis):
     mock_client = AsyncMock()
     mock_get_redis.return_value = mock_client

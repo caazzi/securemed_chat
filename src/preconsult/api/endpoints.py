@@ -14,13 +14,13 @@ from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel, Field
 from langchain_core.runnables import Runnable
 
-from securemed_chat.core.config import SECUREMED_API_KEY
-from securemed_chat.services.agent_service import (
+from preconsult.core.config import PRECONSULT_API_KEY
+from preconsult.services.agent_service import (
     stream_interview_questions,
     get_interview_chain,
 )
-from securemed_chat.services.pdf_service import generate_pdf_report_in_memory
-from securemed_chat.services.session_service import (
+from preconsult.services.pdf_service import generate_pdf_report_in_memory
+from preconsult.services.session_service import (
     create_session,
     get_session,
     update_session,
@@ -34,7 +34,7 @@ from fastapi import Request
 API_KEY_HEADER = APIKeyHeader(name="X-API-KEY", auto_error=False)
 
 async def get_api_key(api_key_header: str = Security(API_KEY_HEADER)):
-    if api_key_header == SECUREMED_API_KEY:
+    if api_key_header == PRECONSULT_API_KEY:
         return api_key_header
     raise HTTPException(status_code=403, detail="Could not validate credentials")
 

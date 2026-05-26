@@ -2,7 +2,7 @@
 set -e
 
 PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-"securemed-chat-494521"}
-REPO=${GITHUB_REPO:-"caazzi/securemed_chat"}
+REPO=${GITHUB_REPO:-"caazzi/preconsult"}
 SERVICE_ACCOUNT="github-deploy-sa"
 
 echo "Creating Service Account..."

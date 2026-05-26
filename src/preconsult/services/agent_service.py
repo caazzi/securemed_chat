@@ -11,7 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
 from langchain_core.output_parsers import StrOutputParser
 
-from securemed_chat.core.llm import get_llm
+from preconsult.core.llm import get_llm
 
 def get_language_instructions(lang: str) -> dict:
     if lang == 'pt':

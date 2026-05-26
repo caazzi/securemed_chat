@@ -33,7 +33,7 @@ translations = {
         "question_label": "P",
         "answer_label": "R",
         "none_reported": "Não informado",
-        "filename": "Resumo_Medico.pdf"
+        "filename": "PreConsult_Resumo.pdf"
     },
     "en": {
         "generated_on": "Generated on",
@@ -54,7 +54,7 @@ translations = {
         "question_label": "Q",
         "answer_label": "A",
         "none_reported": "None reported",
-        "filename": "Medical_Summary_Report.pdf"
+        "filename": "PreConsult_Report.pdf"
     }
 }
 

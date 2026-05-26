@@ -1,14 +1,14 @@
 import pytest
 import httpx
 from httpx import ASGITransport
-from securemed_chat.main import app
-from securemed_chat.core.config import SECUREMED_API_KEY
+from preconsult.main import app
+from preconsult.core.config import PRECONSULT_API_KEY
 import redis.asyncio as redis
 import os
 
 @pytest.mark.asyncio
 async def test_rate_limit_session_init():
-    headers = {"X-API-KEY": SECUREMED_API_KEY}
+    headers = {"X-API-KEY": PRECONSULT_API_KEY}
     payload = {
         "age_bracket": "26-35",
         "sex": "Female",
@@ -39,7 +39,7 @@ async def test_rate_limit_session_init():
 
 @pytest.mark.asyncio
 async def test_session_quota():
-    headers = {"X-API-KEY": SECUREMED_API_KEY}
+    headers = {"X-API-KEY": PRECONSULT_API_KEY}
     payload = {
         "age_bracket": "26-35",
         "sex": "Female",

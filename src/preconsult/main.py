@@ -2,11 +2,11 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 from fastapi import FastAPI
-from securemed_chat.api.endpoints import router as api_router
+from preconsult.api.endpoints import router as api_router
 
 # Create the FastAPI application instance
 app = FastAPI(
-    title="SecureMed Chat API",
+    title="PreConsult API",
     description="An API to help patients prepare for their doctor's visit.",
     version="1.0.0"
 )
@@ -20,4 +20,4 @@ async def read_root():
     """
     Root endpoint to confirm the API is running.
     """
-    return {"message": "Welcome to the SecureMed Chat API. Go to /docs for the API documentation."}
+    return {"message": "Welcome to the PreConsult API. Go to /docs for the API documentation."}

@@ -1,7 +1,7 @@
 [project]
-name = "securemed-chat"
+name = "preconsult"
 version = "0.1.0"
-description = "SecureMed Chat - Privacy-First Medical Intake Assistant"
+description = "PreConsult - Privacy-First Medical Intake Assistant"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
