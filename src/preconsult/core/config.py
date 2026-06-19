@@ -14,4 +14,4 @@ PRECONSULT_API_KEY = os.environ.get("PRECONSULT_API_KEY")
 if not PRECONSULT_API_KEY and os.environ.get("BUILD_MODE") != "true":
     raise ValueError("FATAL: PRECONSULT_API_KEY environment variable not set. Aborting startup.")
 
-LLM_MODEL = "gemini-flash-latest"
+LLM_MODEL = "gemini-1.5-flash"
